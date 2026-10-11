@@ -1,0 +1,21 @@
+[package]
+name = "zenith-pyq-clone"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow = "1.0.104"
+axum = { version = "0.8.9", features = ["form", "query", "json", "http1", "http2"] }
+chrono = { version = "0.4.45", features = ["serde"] }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.152"
+sqlx = { version = "0.9.0", features = ["sqlite", "runtime-tokio", "macros", "chrono", "uuid"] }
+tokio = { version = "1.53.2", features = ["full"] }
+tower-cookies = "0.11.0"
+tower-http = { version = "0.7.1", features = ["fs"] }
+tracing = "0.1.44"
+tracing-subscriber = "0.3.23"
+uuid = { version = "1.28.0", features = ["v4", "serde"] }
+
+[dev-dependencies]
+serde_urlencoded = "0.7.1"
