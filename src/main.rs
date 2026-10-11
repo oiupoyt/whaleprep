@@ -29,7 +29,12 @@ fn hx(body: String, code: StatusCode) -> impl IntoResponse {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    tracing_subscriber::fmt().with_max_level(tracing::Level::DEBUG).init();
+    // Defaults to info; RUST_LOG=debug adds the query log.
+    tracing_subscriber::fmt()
+        .with_env_filter(
+            tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "zenith_pyq_clone=info,sqlx=warn".into()),
+        )
+        .init();
     let db_path = std::env::var("PYQ_DB").unwrap_or_else(|_| "pyq.db".into());
     let base = std::env::var("PYQ_BASE").unwrap_or_else(|_| String::new());
     let addr = std::env::var("PYQ_ADDR").unwrap_or_else(|_| "127.0.0.1:8080".into());
