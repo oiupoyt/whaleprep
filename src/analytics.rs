@@ -233,8 +233,17 @@ pub fn coach_notes(a: &Analysis, history: &[TestRow]) -> Vec<String> {
     notes
 }
 
+/// Clock text for a countdown. An hour that is always zero takes width that the
+/// minutes need on a phone, so empty leading units are dropped.
 pub fn fmt_dur(s: i64) -> String {
-    format!("{}h {:02}m {:02}s", s / 3600, (s % 3600) / 60, s % 60)
+    let (h, m, sec) = (s / 3600, (s % 3600) / 60, s % 60);
+    if h > 0 {
+        format!("{h}h {m:02}m {sec:02}s")
+    } else if m > 0 {
+        format!("{m}m {sec:02}s")
+    } else {
+        format!("{sec}s")
+    }
 }
 
 pub fn fmt_pct(score: i32, max: i32) -> i32 {

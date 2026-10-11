@@ -62,3 +62,139 @@ footer{margin-top:48px;border-top:1px solid var(--border);padding-top:16px;color
 @media(max-width:700px){.grid2,.grid3{grid-template-columns:1fr}.kv{grid-template-columns:1fr 1fr}h1{font-size:1.6rem}.nav a.hidem{display:none}.palette{grid-template-columns:repeat(5,1fr)}.cbt{gap:10px}.topbar{padding:10px 0}.brand span{display:none}}
 @media(max-width:420px){.kv{grid-template-columns:1fr}.palette{grid-template-columns:repeat(4,1fr)}.brand{font-size:.9rem}.btn{padding:10px 14px;min-height:44px}}
 @media(hover:none){.pal{min-height:48px}}
+
+/* ===== exam screen =====
+   The clock and the palette are the two things a candidate must never lose,
+   so both are pinned rather than left to scroll. */
+.exam-bar{position:sticky;top:0;z-index:6;background:var(--bg);border-bottom:1px solid var(--border);padding:8px 0 0;margin:0 0 12px}
+.exam-bar-inner{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:44px}
+.exam-title{display:flex;flex-direction:column;min-width:0}
+.exam-title b{color:#fff;font-size:.95rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.exam-clock{text-align:right;flex:none}
+.exam-progress{height:3px;background:#1c1c1c;margin-top:8px}
+.exam-progress i{display:block;height:100%;background:var(--cyan);width:0;transition:width .2s ease}
+.exam-bar.complete .exam-progress i{background:var(--ok)}
+.exam-bar .timer{font-size:1.15rem;line-height:1.1}
+.timer.urgent{color:var(--amber)}
+.timer.critical{color:var(--bad)}
+
+.cbt-side h2{margin-top:0}
+.legend{list-style:none;display:flex;flex-wrap:wrap;gap:10px;margin:10px 0;font-size:.7rem;color:var(--dim)}
+.legend li{display:flex;align-items:center;gap:5px}
+.legend .sw{width:9px;height:9px;display:inline-block;border:1px solid var(--edge)}
+.legend .sw.ans{background:#12301f;border-color:var(--ok)}
+.legend .sw.rev{background:#2a1f05;border-color:var(--amber)}
+.legend .sw.skip{background:var(--panel)}
+.cbt-count{margin:0 0 10px;font-variant-numeric:tabular-nums}
+.btn.block{display:block;width:100%;margin-top:8px}
+.cbt-side [data-close-palette]{display:none}
+button.pal-fab{display:none}
+.pane-head{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap;font-size:.78rem}
+.stem{margin:10px 0 6px;color:#fff;font-size:1rem;line-height:1.5}
+.meta-line{margin-bottom:10px}
+.opt-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+.opt-actions .btn{flex:1 1 auto;min-width:120px}
+
+/* The palette is a drawer under the question: it was a wall of tiles that pushed
+   the submit button off a phone screen. */
+@media(max-width:1024px){
+  /* A translated-off drawer is still in the tab order, so it is also hidden from
+     assistive tech and hit testing while closed. */
+  .cbt-side{position:fixed;left:0;right:0;bottom:0;background:var(--panel);border-top:1px solid var(--edge);padding:14px 16px calc(68px + env(safe-area-inset-bottom));max-height:78vh;overflow-y:auto;transform:translateY(100%);visibility:hidden;transition:transform .2s ease,visibility .2s;z-index:31}
+  .cbt-side.open{transform:translateY(0);visibility:visible}
+  .cbt-side h2{margin-top:0}
+  /* The button that opens the drawer cannot live inside the drawer, so it floats
+     above the tab bar where a thumb reaches it while reading a question. */
+  /* It sits above the tab bar, so the page reserves that strip; without it the
+     button lands on top of the last line of text. */
+  button.pal-fab{
+    display:flex;position:fixed;right:14px;z-index:25;
+    bottom:calc(60px + env(safe-area-inset-bottom));
+    margin:0;min-height:48px;padding:12px 16px;
+    background:var(--panel);border:1px solid var(--cyan);color:var(--cyan);
+  }
+  button.pal-fab[aria-expanded=true]{
+    /* While the drawer is open the button is redundant, so it leaves the
+       submit row entirely rather than covering it. */
+    display:none;
+  }
+  /* The drawer keeps its own close control at the top. */
+  .cbt-side [data-close-palette]{display:block}
+  .palette{grid-template-columns:repeat(6,1fr)}
+  /* Room for the drawer so the last option row is never hidden behind it. */
+  .cbt{padding-bottom:76px}
+}
+
+/* Phone: a smaller type step, tighter gaps, and touch-sized controls throughout. */
+@media(max-width:700px){
+  body{font-size:15px;padding:0 14px 72px}
+  h1{font-size:1.55rem}
+  h2{font-size:.7rem;margin:22px 0 10px}
+  .exam-bar{padding-top:6px}
+  .exam-title b{font-size:.85rem}
+  .exam-bar .timer{font-size:1.35rem}
+  .pane-head{font-size:.75rem}
+  .stem{font-size:1.02rem;line-height:1.55}
+  .opt-actions .btn{min-width:0;flex:1 1 44%;padding:12px 10px;min-height:48px}
+  .palette{grid-template-columns:repeat(5,1fr);gap:8px}
+  .pal{min-height:48px;font-size:.8rem}
+  .kv .card b{font-size:1.3rem}
+  /* Every control on the exam screen gets a thumb-sized target. */
+  .btn{padding:11px 14px;min-height:44px}
+  .opt{padding:12px 12px;min-height:48px}
+  table{font-size:.78rem}
+  /* A data table cannot shrink to a phone, so it scrolls inside its own box
+     instead of pushing the whole page sideways. */
+  .table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:0 -14px;padding:0 14px}
+}
+
+@media(max-width:420px){
+  .palette{grid-template-columns:repeat(4,1fr)}
+  .opt-actions .btn{flex:1 1 100%}
+}
+
+/* Tablet: the palette drops under the question, so it needs the same drawer
+   treatment as a phone but with room for a wider grid. */
+@media(max-width:1024px) and (min-width:701px){
+  .cbt{padding-bottom:0}
+  .cbt-side{max-height:70vh}
+}
+
+/* ===== phone navigation =====
+   The desktop link row has nowhere to go under 700px. Rather than hiding it,
+   the primary destinations move to a fixed bottom bar within thumb reach. */
+.tabbar{display:none}
+@media(max-width:700px){
+  .tabbar{
+    display:grid;grid-auto-flow:column;grid-auto-columns:1fr;
+    position:fixed;left:0;right:0;bottom:0;z-index:30;
+    background:var(--panel);border-top:1px solid var(--edge);
+    padding-bottom:env(safe-area-inset-bottom);
+  }
+  .tabbar a{
+    display:flex;align-items:center;justify-content:center;text-align:center;
+    min-height:52px;padding:6px 4px;font-size:.72rem;color:var(--muted);
+    border-right:1px solid var(--border);text-decoration:none;line-height:1.3;
+  }
+  .tabbar a:last-child{border-right:0}
+  .tabbar a:active{background:#1c1c1c;color:#fff}
+  .tabbar a:hover{text-decoration:none;color:#fff}
+  /* The bar is fixed, so the page reserves its height or the last row sits under it. */
+  body{padding-bottom:calc(72px + env(safe-area-inset-bottom))}
+  /* Clear the floating palette button in the exam view only. */
+  body.exam{padding-bottom:calc(122px + env(safe-area-inset-bottom))}
+  footer{margin-top:32px}
+}
+@media(min-width:701px){body{padding-bottom:64px}}
+
+/* ===== tap targets =====
+   Measured at 35px on a pointer device and 13px on the chapter checkboxes,
+   both below the 44px minimum. Padding fixes the hit area without making the
+   control look heavy. */
+.btn,a.btn{min-height:44px;padding:12px 18px;display:inline-flex;align-items:center;justify-content:center}
+button.btn{line-height:1.2}
+input[type=text],input[type=email],input[type=number],select{min-height:44px;padding:12px}
+/* The native checkbox is small by design, so the label around it carries the target. */
+.chk{min-height:44px}
+.chk input[type=checkbox]{width:20px;height:20px;margin-top:2px;flex:none}
+.opt input[type=radio]{width:20px;height:20px;flex:none}

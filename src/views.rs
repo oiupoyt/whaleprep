@@ -57,7 +57,19 @@ fn nav(ctx: &Ctx, user: Option<&str>) -> String {
             b = ctx.base
         ),
     };
-    format!("{brand}{links}</nav></header>")
+    // Below 700px the row of links has nowhere to go, so the primary destinations
+    // move to a bottom bar rather than disappearing behind a hidden class.
+    let tabbar = match user {
+        Some(_) => format!(
+            r#"<nav class="tabbar" aria-label="primary"><a href="{b}/build">build</a><a href="{b}/history">history</a><a href="{b}/dashboard">dashboard</a><a href="{b}/logout">sign out</a></nav>"#,
+            b = ctx.base
+        ),
+        None => format!(
+            r#"<nav class="tabbar" aria-label="primary"><a href="{b}/">home</a><a href="{b}/build">start a paper</a><a href="{b}/terms">terms</a></nav>"#,
+            b = ctx.base
+        ),
+    };
+    format!("{brand}{links}</nav></header>{tabbar}")
 }
 
 fn foot(ctx: &Ctx) -> String {
@@ -69,6 +81,13 @@ fn foot(ctx: &Ctx) -> String {
 
 pub fn shell(ctx: &Ctx, user: Option<&str>, title: &str, body: String) -> String {
     format!("{}{}{}{}", head(ctx, title), nav(ctx, user), body, foot(ctx))
+}
+
+/// The exam screen carries a floating palette button, so the page needs extra
+/// bottom room for it on a phone.
+pub fn shell_exam(ctx: &Ctx, user: Option<&str>, title: &str, body: String) -> String {
+    let page = shell(ctx, user, title, body);
+    page.replacen("<body>", "<body class=\"exam\">", 1)
 }
 
 pub fn landing(ctx: &Ctx, q: i64, shifts: i64, subtopics: i64, subjects: i64, students: i64, signed: bool) -> String {
@@ -358,20 +377,24 @@ pub fn attempt(ctx: &Ctx, user: &str, attempt_id: &str, questions: &[Question], 
             };
             format!(
                 r#"<section class="card qpane" id="qpane-{i}" data-i="{i}"{hidden}>
-  <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
-    <span class="dim">question {n} · {subj} · {ch}</span>
+  <div class="pane-head">
+    <span class="dim">question {n} of {total} · {subj}</span>
     <span class="dim">{qt} · +4 / −1{revflag}</span>
   </div>
-  <p style="margin:10px 0 4px;color:#fff">{stem}</p>
-  <div class="dim" style="margin-bottom:8px">{sub2} · {year} {shift} · {difficulty}</div>
+  <p class="stem">{stem}</p>
+  <div class="dim meta-line">{sub2} · {ch} · {year} {shift} · {difficulty}</div>
   {opts}
-  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
+  <div class="opt-actions">
+    <button type="button" class="btn" data-act="prev"{prevdis}>previous</button>
     <button type="button" class="btn ok" data-act="save">save &amp; next</button>
-    <button type="button" class="btn" data-act="review">mark for review</button>
+    <button type="button" class="btn" data-act="review"{revcls}>mark for review</button>
     <button type="button" class="btn" data-act="clear">clear</button>
   </div>
 </section>"#,
                 hidden = if i == 0 { "" } else { " hidden" },
+                prevdis = if i == 0 { " disabled" } else { "" },
+                revcls = if rev { " danger" } else { "" },
+                total = questions.len(),
                 n = i + 1,
                 subj = esc(&q.subject),
                 ch = esc(&q.chapter),
@@ -387,18 +410,31 @@ pub fn attempt(ctx: &Ctx, user: &str, attempt_id: &str, questions: &[Question], 
         })
         .collect();
     let body = format!(
-        r#"<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin:14px 0">
-  <div><h1 style="margin:0">{title}</h1><span class="dim">{n} questions · +4 / −1</span></div>
-  <div style="text-align:right"><div class="timer" id="timer" data-secs="{secs}">{dur}</div><div class="dim">remaining</div></div>
+        r#"<div class="exam-bar">
+  <div class="exam-bar-inner">
+    <div class="exam-title"><b>{title}</b><span class="dim" id="exam-progress">{n} questions</span></div>
+    <div class="exam-clock"><span class="dim">time left</span><div class="timer" id="timer" data-secs="{secs}" role="timer">{dur}</div></div>
+  </div>
+  <div class="exam-progress"><i id="exam-fill"></i></div>
 </div>
-<form method="post" action="{b}/attempt/{a}/submit" id="exam-form" data-attempt="{a}">
+<form method="post" action="{b}/attempt/{a}/submit" id="exam-form" data-attempt="{a}" data-base="{b}">
 <div class="cbt">
   <div>{qs}</div>
-  <div><h2>palette</h2><div class="palette" id="pal">{pal}</div>
-    <p class="dim" style="margin-top:10px"><span class="ok-t">answered</span> · <span class="warn-t">review</span> · <span class="dim">blank</span></p>
-    <button class="btn primary" type="submit" style="width:100%;margin-top:12px">submit paper</button>
-  </div>
-</div></form>
+  <aside class="cbt-side" id="pal-wrap">
+    <h2>palette</h2>
+    <div class="palette" id="pal" aria-label="question palette">{pal}</div>
+    <ul class="legend">
+      <li><i class="sw ans"></i>answered</li>
+      <li><i class="sw rev"></i>review</li>
+      <li><i class="sw skip"></i>blank</li>
+    </ul>
+    <p class="cbt-count dim" id="cbt-count">0 answered</p>
+    <button class="btn primary block" type="submit">submit paper</button>
+    <button type="button" class="btn block" data-close-palette>close palette</button>
+  </aside>
+</div>
+<button type="button" class="btn pal-fab" id="pal-toggle" aria-expanded="false" aria-controls="pal-wrap">palette <span id="pal-fab-count"></span></button>
+</form>
 <script src="{b}/static/exam.js"></script>"#,
         title = esc(title),
         n = questions.len(),
@@ -409,7 +445,7 @@ pub fn attempt(ctx: &Ctx, user: &str, attempt_id: &str, questions: &[Question], 
         qs = body_questions.join(""),
         pal = palette(questions, answers)
     );
-    shell(ctx, Some(user), "Test", body)
+    shell_exam(ctx, Some(user), "Test", body)
 }
 
 pub struct RowView<'a> {
@@ -502,11 +538,11 @@ pub fn result(ctx: &Ctx, user: &str, _attempt_id: &str, a: &Analysis, rows: &[Ro
   <div class="card"><span class="dim">time used</span><b>{dur}</b></div>
 </div>
 <div class="grid2">
-  <div class="card"><h3>by subject</h3><table><thead><tr><th>subject</th><th>right</th><th>wrong</th><th>blank</th><th></th><th>%</th><th></th></tr></thead><tbody>{subj}</tbody></table></div>
-  <div class="card"><h3>by difficulty</h3><table><thead><tr><th>difficulty</th><th>right</th><th>wrong</th><th>blank</th><th></th><th>%</th><th></th></tr></thead><tbody>{diff}</tbody></table></div>
+  <div class="card table-wrap"><h3>by subject</h3><table><thead><tr><th>subject</th><th>right</th><th>wrong</th><th>blank</th><th></th><th>%</th><th></th></tr></thead><tbody>{subj}</tbody></table></div>
+  <div class="card table-wrap"><h3>by difficulty</h3><table><thead><tr><th>difficulty</th><th>right</th><th>wrong</th><th>blank</th><th></th><th>%</th><th></th></tr></thead><tbody>{diff}</tbody></table></div>
 </div>
 <h2>chapters that cost you marks</h2>
-<div class="card"><table><thead><tr><th>subtopic</th><th>right</th><th>wrong</th><th>blank</th><th></th><th>%</th><th></th></tr></thead><tbody>{topic}</tbody></table></div>
+<div class="card table-wrap"><table><thead><tr><th>subtopic</th><th>right</th><th>wrong</th><th>blank</th><th></th><th>%</th><th></th></tr></thead><tbody>{topic}</tbody></table></div>
 <h2>every question</h2>
 {detail}
 <p style="margin-top:18px;display:flex;gap:8px;flex-wrap:wrap">
@@ -557,7 +593,7 @@ pub fn history(ctx: &Ctx, user: &str, tests: &[TestRow]) -> String {
         )
     } else {
         format!(
-            r#"<h1>History</h1><div class="card" style="margin-top:16px;overflow-x:auto"><table><thead><tr><th>date</th><th>paper</th><th>score</th><th>%</th><th>accuracy</th><th>time</th><th></th></tr></thead><tbody>{rows}</tbody></table></div>"#,
+            r#"<h1>History</h1><div class="card table-wrap" style="margin-top:16px"><table><thead><tr><th>date</th><th>paper</th><th>score</th><th>%</th><th>accuracy</th><th>time</th><th></th></tr></thead><tbody>{rows}</tbody></table></div>"#,
             rows = rows
         )
     };
@@ -570,7 +606,7 @@ pub fn dashboard(ctx: &Ctx, user: &str, tests: &[TestRow], weak: &[(Bucket, Stri
         String::new()
     } else {
         let best = tests.iter().map(|t| t.score * 100 / t.max_score.max(1)).max().unwrap_or(0);
-        let mut s = String::from(r#"<h2>percentage across papers</h2><div class="card"><table><thead><tr><th>date</th><th>paper</th><th>%</th><th>accuracy</th></tr></thead><tbody>"#);
+        let mut s = String::from(r#"<h2>percentage across papers</h2><div class="card table-wrap"><table><thead><tr><th>date</th><th>paper</th><th>%</th><th>accuracy</th></tr></thead><tbody>"#);
         for t in tests {
             s.push_str(&format!(
                 r#"<tr><td>{}</td><td>{}</td><td>{}%</td><td>{}%</td></tr>"#,
@@ -616,7 +652,7 @@ pub fn dashboard(ctx: &Ctx, user: &str, tests: &[TestRow], weak: &[(Bucket, Stri
 </div>
 {trend}
 <h2>weakest subtopics across all papers</h2>
-<div class="card"><table><thead><tr><th>subtopic</th><th>seen</th><th>wrong</th><th>blank</th><th></th><th></th></tr></thead><tbody>{weak}</tbody></table></div>
+<div class="card table-wrap"><table><thead><tr><th>subtopic</th><th>seen</th><th>wrong</th><th>blank</th><th></th><th></th></tr></thead><tbody>{weak}</tbody></table></div>
 <h2>coach notes</h2>
 <div class="card"><ul style="padding-left:18px;display:grid;gap:6px">{notes}</ul><p class="dim" style="margin-top:10px">Written from your own submitted papers. No data leaves this machine.</p></div>
 <p style="margin-top:18px"><a class="btn" href="{b}/history">all papers</a></p>"#,
