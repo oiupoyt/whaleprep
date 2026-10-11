@@ -17,9 +17,16 @@ pub fn esc(s: &str) -> String {
     o
 }
 
+pub struct SubtopicRow {
+    pub id: i64,
+    pub name: String,
+}
+
 pub struct ChapterBlock {
     pub id: i64,
     pub name: String,
+    /// Parallel vecs: subtopic_ids[i] matches subtopics[i]
+    pub subtopic_ids: Vec<i64>,
     pub subtopics: Vec<String>,
     pub count: i64,
 }
@@ -268,54 +275,128 @@ pub fn error(ctx: &Ctx, code: u16, detail: &str) -> String {
 pub fn build(ctx: &Ctx, user: &str, blocks: Vec<SubjectBlock>, _form: &BuildForm, available: i64, err: Option<&str>) -> String {
     let mut picker = String::new();
     for sb in &blocks {
-        picker.push_str(&format!("<h3>{}</h3>", esc(&sb.subject)));
+        picker.push_str(&format!(r#"<div class="subject-section"><h3 class="subject-label"><label class="chk all-subj"><input type="checkbox" class="subj-all" data-subj="{s}"><span>{sl}</span></label></h3>"#,
+            s = esc(&sb.subject), sl = esc(&sb.subject)));
         for ch in &sb.chapters {
-            let subs = ch.subtopics.iter().map(|s| esc(s)).collect::<Vec<_>>().join(", ");
+            // Each chapter has a "select all" plus individual subtopic checkboxes.
+            let subcheck: String = ch.subtopic_ids.iter().zip(ch.subtopics.iter()).map(|(sid, sname)| {
+                format!(r#"<label class="chk sub-chk"><input type="checkbox" class="subtopic" value="{sid}" data-chap="{cid}"><span class="dim">{sn}</span></label>"#,
+                    sid = sid, cid = ch.id, sn = esc(sname))
+            }).collect();
             picker.push_str(&format!(
-                r#"<label class="chk"><input type="checkbox" class="chap" value="{cid}"><span><b>{cname}</b><br><span class="dim">{subs} · {count} questions</span></span></label>"#,
-                cid = ch.id,
-                cname = esc(&ch.name),
-                subs = subs,
-                count = ch.count
+                r#"<div class="chapter-group">
+  <label class="chk chapter-hd"><input type="checkbox" class="chap" value="{cid}" data-subj="{subj}"><span><b>{cname}</b> <span class="dim">· {count} q</span></span></label>
+  <div class="subtopic-list" id="sl-{cid}">{subcheck}</div>
+</div>"#,
+                cid = ch.id, cname = esc(&ch.name), count = ch.count, subj = esc(&sb.subject), subcheck = subcheck
             ));
         }
+        picker.push_str("</div>");
     }
     let e = err.map(|m| format!(r#"<p class="bad-t">{m}</p>"#)).unwrap_or_default();
     let body = format!(
         r#"<h1>Build a paper</h1>
-<p class="meta">{available} questions match this bank. Pick the chapters you are revising; the paper is drawn from them and marked on the +4 / −1 scheme.</p>
-<form method="post" action="{b}/build" style="margin-top:18px">
+<p class="meta">{available} questions in the bank. Pick chapters or individual subtopics.</p>
+<form method="post" action="{b}/build" id="build-form">
   <input type="hidden" name="chapters" id="chapters" value="">
-  <div class="grid2"><div>{picker}</div>
-  <div>
-    <div style="position:sticky;top:64px">
+  <input type="hidden" name="subtopics" id="subtopics" value="">
+  <input type="hidden" name="mode" id="mode" value="">
+  <div class="grid2"><div class="picker-col">{picker}</div>
+  <div class="settings-col">
+    <div class="settings-sticky">
       <h2>paper settings</h2>
       <label for="count">questions</label>
       <select id="count" name="count">
-        <option value="9">9 · short drill</option><option value="12" selected>12</option>
-        <option value="18">18</option><option value="25">25</option><option value="36">36 · full paper</option>
+        <option value="9">9 · quick drill</option>
+        <option value="12" selected>12</option>
+        <option value="18">18</option>
+        <option value="25">25</option>
+        <option value="50">50</option>
+        <option value="75">75 · full shift</option>
       </select>
-      <label for="duration">duration in minutes</label>
-      <input id="duration" name="duration" type="number" value="24" min="5" max="180">
-      <label class="chk" style="margin-top:14px"><input type="checkbox" name="unseen_only" checked><span>unseen questions only<br><span class="dim">skips anything you have already answered once</span></span></label>
-      <p class="dim" id="pick-note" style="margin-top:10px">no chapters picked yet</p>
+      <label class="chk" style="margin-top:12px">
+        <input type="checkbox" id="jee-mode" name="_jee">
+        <span>JEE mode — 60 min per subject<br><span class="dim">ignores the duration field</span></span>
+      </label>
+      <div id="dur-row">
+        <label for="duration" style="margin-top:12px">duration (minutes)</label>
+        <input id="duration" name="duration" type="number" value="24" min="5" max="180">
+      </div>
+      <label class="chk" style="margin-top:12px">
+        <input type="checkbox" name="unseen_only" checked>
+        <span>unseen questions only<br><span class="dim">skips anything you have already answered once</span></span>
+      </label>
+      <p class="dim build-note" id="pick-note" style="margin-top:10px">no topics picked yet</p>
       {e}
-      <div style="margin-top:14px"><button class="btn primary" type="submit">create paper</button></div>
+      <div style="margin-top:14px"><button class="btn primary block" type="submit">create paper</button></div>
     </div>
   </div></div>
 </form>
-<script>// Repeated checkbox keys do not survive a urlencoded body, so the ids are joined into one field.
+<script>
 (() => {{
-  const boxes = [...document.querySelectorAll('.chap')];
-  const field = document.getElementById('chapters');
+  const form = document.getElementById('build-form');
+  const chapField = document.getElementById('chapters');
+  const stField = document.getElementById('subtopics');
+  const modeField = document.getElementById('mode');
   const note = document.getElementById('pick-note');
-  const sync = () => {{
-    field.value = boxes.filter(b => b.checked).map(b => b.value).join(',');
-    note.textContent = field.value ? field.value.split(',').length + ' chapters picked' : 'no chapters picked yet';
-  }};
-  boxes.forEach(b => b.addEventListener('change', sync));
+  const jeeBox = document.getElementById('jee-mode');
+  const durRow = document.getElementById('dur-row');
+
+  // JEE mode hides the flat duration field.
+  jeeBox.addEventListener('change', () => {{
+    durRow.hidden = jeeBox.checked;
+    modeField.value = jeeBox.checked ? 'jee' : '';
+  }});
+
+  // Selecting a chapter expands the subtopic list and checks all subtopics.
+  document.querySelectorAll('.chap').forEach(ch => {{
+    ch.addEventListener('change', () => {{
+      const grp = ch.closest('.chapter-group');
+      if (grp) grp.classList.toggle('expanded', ch.checked);
+      document.querySelectorAll(`.subtopic[data-chap="${{ch.value}}"]`).forEach(st => {{
+        st.checked = ch.checked;
+      }});
+      sync();
+    }});
+  }});
+
+  // Selecting a "select all subjects" box checks all chapters in that subject.
+  document.querySelectorAll('.subj-all').forEach(sa => {{
+    sa.addEventListener('change', () => {{
+      const subj = sa.dataset.subj;
+      document.querySelectorAll(`.chap[data-subj="${{subj}}"]`).forEach(ch => {{
+        ch.checked = sa.checked;
+        document.querySelectorAll(`.subtopic[data-chap="${{ch.value}}"]`).forEach(st => {{ st.checked = sa.checked; }});
+      }});
+      sync();
+    }});
+  }});
+
+  // A subtopic change syncs parent chapter (checked if ANY subtopic checked).
+  document.querySelectorAll('.subtopic').forEach(st => {{
+    st.addEventListener('change', () => {{
+      const chapId = st.dataset.chap;
+      const chap = document.querySelector(`.chap[value="${{chapId}}"]`);
+      if (chap) {{
+        const any = [...document.querySelectorAll(`.subtopic[data-chap="${{chapId}}"]`)].some(s => s.checked);
+        chap.checked = any;
+        chap.indeterminate = any && [...document.querySelectorAll(`.subtopic[data-chap="${{chapId}}"]`)].some(s => !s.checked);
+      }}
+      sync();
+    }});
+  }});
+
+  function sync() {{
+    const chapIds = [...document.querySelectorAll('.chap:checked')].map(c => c.value);
+    const stIds   = [...document.querySelectorAll('.subtopic:checked')].map(s => s.value);
+    chapField.value = chapIds.join(',');
+    stField.value   = stIds.join(',');
+    const n = stIds.length || chapIds.length;
+    note.textContent = n ? `${{chapIds.length}} chapter${{chapIds.length!==1?'s':''}} · ${{stIds.length}} subtopics` : 'no topics picked yet';
+  }}
   sync();
-}})();</script>"#,
+}})();
+</script>"#,
         available = available,
         b = ctx.base,
         picker = picker,
@@ -409,6 +490,27 @@ pub fn attempt(ctx: &Ctx, user: &str, attempt_id: &str, questions: &[Question], 
             )
         })
         .collect();
+    // Group questions by subject to build per-subject timer strips.
+    let subjects_ordered: Vec<&str> = {
+        let mut seen = std::collections::LinkedList::new();
+        let mut added = std::collections::HashSet::new();
+        for q in questions {
+            if added.insert(q.subject.as_str()) { seen.push_back(q.subject.as_str()); }
+        }
+        seen.into_iter().collect()
+    };
+    // Detect JEE mode: duration == 60 * nsubjects (and nsubjects > 1).
+    let is_jee = subjects_ordered.len() > 1 && duration_min == 60 * subjects_ordered.len() as i64;
+    let subj_timer_bar = if is_jee {
+        let strips: String = subjects_ordered.iter().enumerate().map(|(i, subj)| {
+            let cls = if i == 0 { " active" } else { "" };
+            let secs = 60 * 60i64; // 60 min per subject
+            format!(r#"<div class="subj-timer{cls}" data-subj="{s}" data-secs="{secs}" id="st-{i}"><span class="dim">{s}</span><b>{m}:00</b></div>"#,
+                cls = cls, s = esc(subj), secs = secs, i = i, m = 60)
+        }).collect();
+        format!(r#"<div class="subj-timer-bar" id="subj-timers">{strips}</div>"#)
+    } else { String::new() };
+
     let body = format!(
         r#"<div class="exam-bar">
   <div class="exam-bar-inner">
@@ -416,6 +518,7 @@ pub fn attempt(ctx: &Ctx, user: &str, attempt_id: &str, questions: &[Question], 
     <div class="exam-clock"><span class="dim">time left</span><div class="timer" id="timer" data-secs="{secs}" role="timer">{dur}</div></div>
   </div>
   <div class="exam-progress"><i id="exam-fill"></i></div>
+  {stbar}
 </div>
 <form method="post" action="{b}/attempt/{a}/submit" id="exam-form" data-attempt="{a}" data-base="{b}">
 <div class="cbt">
@@ -440,6 +543,7 @@ pub fn attempt(ctx: &Ctx, user: &str, attempt_id: &str, questions: &[Question], 
         n = questions.len(),
         dur = fmt_dur(duration_min as i64 * 60),
         secs = duration_min * 60,
+        stbar = subj_timer_bar,
         b = ctx.base,
         a = esc(attempt_id),
         qs = body_questions.join(""),

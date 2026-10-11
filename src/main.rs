@@ -251,17 +251,12 @@ async fn sign_in_with_google(ctx: &CtxArc, claims: &google::Claims, next: Option
     auth::start_session(ctx, &uid, &name, &email, next).await
 }
 
-async fn build_page(State(ctx): State<CtxArc>, h: HeaderMap) -> axum::response::Response {
-    let (_uid, name) = match ctx.require_user(&h).await {
-        Ok(v) => v,
-        Err(r) => return r,
-    };
+async fn load_chapter_blocks(pool: &sqlx::SqlitePool) -> Vec<views::SubjectBlock> {
     use sqlx::Row;
     let rows = sqlx::query(
-        "SELECT c.id, c.subject, c.name, s.name AS sub, (SELECT COUNT(*) FROM questions q WHERE q.chapter_id=c.id) AS n
-         FROM chapters c JOIN subtopics s ON s.chapter_id=c.id ORDER BY c.subject, c.name, s.name",
+        "SELECT c.id, c.subject, c.name, s.id AS sub_id, s.name AS sub,          (SELECT COUNT(*) FROM questions q WHERE q.chapter_id=c.id) AS n          FROM chapters c JOIN subtopics s ON s.chapter_id=c.id          ORDER BY c.subject, c.name, s.name",
     )
-    .fetch_all(&ctx.pool)
+    .fetch_all(pool)
     .await
     .unwrap_or_default();
     let mut blocks: Vec<views::SubjectBlock> = Vec::new();
@@ -269,6 +264,7 @@ async fn build_page(State(ctx): State<CtxArc>, h: HeaderMap) -> axum::response::
         let subject: String = r.get("subject");
         let id: i64 = r.get("id");
         let cname: String = r.get("name");
+        let sub_id: i64 = r.get("sub_id");
         let sub: String = r.get("sub");
         let n: i64 = r.get("n");
         if !blocks.iter().any(|b| b.subject == subject) {
@@ -276,15 +272,24 @@ async fn build_page(State(ctx): State<CtxArc>, h: HeaderMap) -> axum::response::
         }
         let blk = blocks.iter_mut().find(|b| b.subject == subject).unwrap();
         match blk.chapters.iter_mut().find(|c| c.id == id) {
-            Some(c) => {
-                c.subtopics.push(sub);
-                c.count = n;
-            }
-            None => blk.chapters.push(views::ChapterBlock { id, name: cname, subtopics: vec![sub], count: n }),
+            Some(c) => { c.subtopic_ids.push(sub_id); c.subtopics.push(sub); c.count = n; }
+            None => blk.chapters.push(views::ChapterBlock {
+                id, name: cname, subtopic_ids: vec![sub_id], subtopics: vec![sub], count: n,
+            }),
         }
     }
+    blocks
+}
+
+
+async fn build_page(State(ctx): State<CtxArc>, h: HeaderMap) -> axum::response::Response {
+    let (_uid, name) = match ctx.require_user(&h).await {
+        Ok(v) => v,
+        Err(r) => return r,
+    };
+    let blocks = load_chapter_blocks(&ctx.pool).await;
     let available: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM questions").fetch_one(&ctx.pool).await.unwrap_or(0);
-    let form = BuildForm { chapters: String::new(), count: Some(12), duration: Some(24), unseen_only: Some("on".into()) };
+    let form = BuildForm { chapters: String::new(), subtopics: String::new(), count: Some(12), duration: Some(24), unseen_only: Some("on".into()), mode: String::new() };
     hx(views::build(&ctx, &name, blocks, &form, available, None), StatusCode::OK).into_response()
 }
 
@@ -296,33 +301,7 @@ async fn build_post(State(ctx): State<CtxArc>, h: HeaderMap, Form(f): Form<Build
     match exam::build_paper(&ctx.pool, &uid, &f).await {
         Ok((paper, _share)) => Redirect::to(&format!("{}/attempt/{paper}", ctx.base)).into_response(),
         Err(e) => {
-            use sqlx::Row;
-            let rows = sqlx::query(
-                "SELECT c.id, c.subject, c.name, s.name AS sub, (SELECT COUNT(*) FROM questions q WHERE q.chapter_id=c.id) AS n
-                 FROM chapters c JOIN subtopics s ON s.chapter_id=c.id ORDER BY c.subject, c.name, s.name",
-            )
-            .fetch_all(&ctx.pool)
-            .await
-            .unwrap_or_default();
-            let mut blocks: Vec<views::SubjectBlock> = Vec::new();
-            for r in &rows {
-                let subject: String = r.get("subject");
-                let id: i64 = r.get("id");
-                let cname: String = r.get("name");
-                let sub: String = r.get("sub");
-                let n: i64 = r.get("n");
-                if !blocks.iter().any(|b| b.subject == subject) {
-                    blocks.push(views::SubjectBlock { subject: subject.clone(), chapters: Vec::new() });
-                }
-                let blk = blocks.iter_mut().find(|b| b.subject == subject).unwrap();
-                match blk.chapters.iter_mut().find(|c| c.id == id) {
-                    Some(c) => {
-                        c.subtopics.push(sub);
-                        c.count = n;
-                    }
-                    None => blk.chapters.push(views::ChapterBlock { id, name: cname, subtopics: vec![sub], count: n }),
-                }
-            }
+            let blocks = load_chapter_blocks(&ctx.pool).await;
             let available: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM questions").fetch_one(&ctx.pool).await.unwrap_or(0);
             let msg = e.to_string();
             hx(views::build(&ctx, &_name, blocks, &f, available, Some(&msg)), StatusCode::OK).into_response()

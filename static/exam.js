@@ -36,6 +36,7 @@
     };
   }
 
+  window._examShow = show;
   function show(i) {
     cur = Math.max(0, Math.min(panes.length - 1, i));
     panes.forEach((p, k) => { p.hidden = k !== cur; });
@@ -209,4 +210,65 @@
   const hash = Number((location.hash.match(/q(\d+)/) || [])[1]);
   panes.forEach(syncPalette);
   show(hash ? hash - 1 : 0);
+})();
+// Per-subject timers — only active in JEE mode (duration == 60×nsubjects).
+// Each strip reads its initial seconds from data-secs and counts down.
+// When a strip hits zero the exam auto-advances to the next subject, not the
+// whole paper; only the last strip exhausting time submits the form.
+(() => {
+  const strips = [...document.querySelectorAll('.subj-timer')];
+  if (!strips.length) return;
+
+  const form = document.getElementById('exam-form');
+  const panes = [...document.querySelectorAll('.qpane')];
+  let currentStrip = 0;
+
+  // Helper: first pane index that belongs to a given subject name.
+  function firstPaneForSubj(name) {
+    return panes.findIndex(p => p.querySelector('.pane-head .dim')?.textContent.includes(name));
+  }
+  // Helper: first pane index that does NOT belong to a given subject.
+  function firstPaneAfterSubj(name) {
+    return panes.findIndex(p => !p.querySelector('.pane-head .dim')?.textContent.includes(name));
+  }
+
+  function paintStrip(el, left) {
+    const m = Math.floor(left / 60), s = left % 60;
+    el.querySelector('b').textContent = `${m}:${String(s).padStart(2,'0')}`;
+    el.classList.toggle('warn', left <= 300 && left > 0);
+    el.classList.toggle('active', left > 0);
+    el.classList.toggle('done', left <= 0);
+  }
+
+  function runStrip(idx) {
+    const el = strips[idx];
+    if (!el) { form.requestSubmit(); return; }
+    el.classList.add('active');
+    let left = Number(el.dataset.secs);
+    const tick = setInterval(() => {
+      left -= 1;
+      el.dataset.secs = left;
+      paintStrip(el, left);
+      if (left <= 0) {
+        clearInterval(tick);
+        el.classList.remove('active');
+        el.classList.add('done');
+        currentStrip = idx + 1;
+        if (currentStrip < strips.length) {
+          // Auto-jump to the first unanswered question of the next subject.
+          const nextSubj = strips[currentStrip]?.dataset.subj;
+          const pi = nextSubj ? firstPaneForSubj(nextSubj) : -1;
+          if (pi >= 0 && typeof window._examShow === 'function') window._examShow(pi);
+          runStrip(currentStrip);
+        } else {
+          form.requestSubmit();
+        }
+      }
+    }, 1000);
+  }
+
+  // Expose the show function from the main IIFE so the subject timer can jump.
+  // exam.js main IIFE sets window._examShow after calling show().
+  strips.forEach((el, i) => paintStrip(el, Number(el.dataset.secs)));
+  runStrip(0);
 })();

@@ -34,10 +34,10 @@ AUDIT = """
     .map(el => el.tagName.toLowerCase() + (el.className ? '.' + String(el.className).split(' ')[0] : ''));
   // Touch targets on the controls a thumb has to hit. A checkbox is measured
   // through its wrapping label, which is the box a thumb actually lands on.
-  const TARGETS = 'button, a.btn, .pal, .opt, .tabbar a, input, select, label.chk';
+  const TARGETS = 'button, a.btn, .pal, .opt, .tabbar a, input, select, label.chk, label.sub-chk';
   const small = [...document.querySelectorAll(TARGETS)]
     .map(el => {
-      const box = (el.matches('input') && el.closest('label.chk')) ? el.closest('label.chk') : el;
+      const box = (el.matches('input') && el.closest('label')) ? el.closest('label') : el;
       return { el: box, r: box.getBoundingClientRect() };
     })
     .filter(x => x.r.width > 0 && x.r.height > 0)

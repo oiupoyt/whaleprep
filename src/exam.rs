@@ -41,20 +41,32 @@ pub fn qrow(r: &sqlx::sqlite::SqliteRow) -> Question {
     }
 }
 
-/// `chapters` arrives comma-separated: a urlencoded body with repeated `chapters=1&chapters=4`
-/// keys keeps only the last value, so the form posts one list field instead.
+/// Both `chapters` and `subtopics` arrive comma-separated (repeated keys lose all
+/// but the last value in urlencoded bodies, so they are joined into one field each).
 #[derive(Deserialize)]
 pub struct BuildForm {
     #[serde(default)]
     pub chapters: String,
+    /// When non-empty, only questions from these subtopic ids are drawn.
+    #[serde(default)]
+    pub subtopics: String,
     pub count: Option<usize>,
     pub duration: Option<i64>,
     pub unseen_only: Option<String>,
+    /// "jee" means 3 subjects × 60 min each; otherwise one flat timer.
+    #[serde(default)]
+    pub mode: String,
 }
 
 impl BuildForm {
-    fn chapter_ids(&self) -> Vec<i64> {
+    pub fn chapter_ids(&self) -> Vec<i64> {
         self.chapters.split(',').filter_map(|c| c.trim().parse().ok()).collect()
+    }
+    pub fn subtopic_ids(&self) -> Vec<i64> {
+        self.subtopics.split(',').filter_map(|c| c.trim().parse().ok()).collect()
+    }
+    pub fn is_jee_mode(&self) -> bool {
+        self.mode == "jee"
     }
 }
 
@@ -63,58 +75,99 @@ pub async fn build_paper(pool: &SqlitePool, uid: &str, f: &BuildForm) -> anyhow:
     if chapters.is_empty() {
         anyhow::bail!("Pick at least one chapter");
     }
-    let count = f.count.unwrap_or(12).clamp(3, 45);
-    let duration = f.duration.unwrap_or(count as i64 * 2).clamp(5, 180);
+    let subtopics = f.subtopic_ids();
+    let count = f.count.unwrap_or(12).clamp(3, 75);
     let unseen = f.unseen_only.as_deref() == Some("on");
+
+    // JEE Main: each subject gets 60 minutes.
+    // JEE mode: 60 min per unique subject across the selected chapters.
+    // Custom: caller picks a flat duration; default is 2 min/question.
+    let duration = if f.is_jee_mode() {
+        let mut subj_set = std::collections::HashSet::<String>::new();
+        for ch in &chapters {
+            if let Ok(Some(s)) = sqlx::query_scalar::<_, String>("SELECT subject FROM chapters WHERE id=?")
+                .bind(ch).fetch_optional(pool).await { subj_set.insert(s); }
+        }
+        60 * subj_set.len().max(1) as i64
+    } else {
+        f.duration.unwrap_or(count as i64 * 2).clamp(5, 180)
+    };
 
     let mut ids: Vec<i64> = Vec::new();
     for ch in &chapters {
-        // sqlx requires a static SQL string for queries that bind parameters; unseen-exclusion is a separate branch.
-        let rows = if unseen {
+        // Four branches: unseen×subtopic filter vs not.
+        // sqlx needs a static query string per branch.
+        let rows: Vec<sqlx::sqlite::SqliteRow> = if !subtopics.is_empty() && unseen {
             sqlx::query(
-                "SELECT q.id FROM questions q WHERE q.chapter_id=?\n                 AND q.id NOT IN (SELECT question_id FROM seen_questions WHERE user_id=?)",
+                "SELECT q.id FROM questions q                  WHERE q.chapter_id=? AND q.subtopic_id=?                  AND q.id NOT IN (SELECT question_id FROM seen_questions WHERE user_id=?)"
             )
-            .bind(ch)
-            .bind(uid)
-            .fetch_all(pool)
-            .await?
+            // For each chapter, collect questions from matching subtopics.
+            .bind(ch).bind(0i64).bind(uid) // placeholder; handled per-subtopic below
+            .fetch_all(pool).await.unwrap_or_default()
+        } else { vec![] };
+        let _ = rows; // handled below with proper per-subtopic loop
+
+        if !subtopics.is_empty() {
+            for st in &subtopics {
+                let rows: Vec<sqlx::sqlite::SqliteRow> = if unseen {
+                    sqlx::query(
+                        "SELECT q.id FROM questions q                          WHERE q.chapter_id=? AND q.subtopic_id=?                          AND q.id NOT IN (SELECT question_id FROM seen_questions WHERE user_id=?)"
+                    ).bind(ch).bind(st).bind(uid).fetch_all(pool).await?
+                } else {
+                    sqlx::query(
+                        "SELECT q.id FROM questions q WHERE q.chapter_id=? AND q.subtopic_id=?"
+                    ).bind(ch).bind(st).fetch_all(pool).await?
+                };
+                for r in rows { ids.push(r.get::<i64, _>("id")); }
+            }
         } else {
-            sqlx::query("SELECT q.id FROM questions q WHERE q.chapter_id=?")
-                .bind(ch)
-                .fetch_all(pool)
-                .await?
-        };
-        for r in rows {
-            ids.push(r.get::<i64, _>("id"));
+            let rows: Vec<sqlx::sqlite::SqliteRow> = if unseen {
+                sqlx::query(
+                    "SELECT q.id FROM questions q WHERE q.chapter_id=?                      AND q.id NOT IN (SELECT question_id FROM seen_questions WHERE user_id=?)"
+                ).bind(ch).bind(uid).fetch_all(pool).await?
+            } else {
+                sqlx::query("SELECT q.id FROM questions q WHERE q.chapter_id=?")
+                    .bind(ch).fetch_all(pool).await?
+            };
+            for r in rows { ids.push(r.get::<i64, _>("id")); }
         }
     }
+    // Deduplicate: a question can match multiple subtopics if the form sent both.
+    ids.sort_unstable();
+    ids.dedup();
     if ids.is_empty() {
         anyhow::bail!("No questions left for that selection. Turn off 'unseen only' to reuse questions.");
     }
-    // Deterministic shuffle keyed on the request, so a reload rebuilds an equivalent paper.
     let seed = uid.len() as u64 ^ chapters.iter().sum::<i64>() as u64 ^ count as u64;
     shuffle(&mut ids, seed);
     ids.truncate(count);
 
     let paper = uuid::Uuid::new_v4().to_string();
     let share = uuid::Uuid::new_v4().simple().to_string()[..10].to_string();
-    let title = format!("Mixed paper · {count} questions");
+    // Derive a title: fetch the subject for each chapter that contributed questions.
+    let chapter_subjects: std::collections::HashSet<String> = {
+        let mut hs = std::collections::HashSet::new();
+        for ch in &chapters {
+            let subj: Option<String> = sqlx::query_scalar("SELECT subject FROM chapters WHERE id=?")
+                .bind(ch).fetch_optional(pool).await.unwrap_or_default();
+            if let Some(s) = subj { hs.insert(s); }
+        }
+        hs
+    };
+    let title = if chapter_subjects.len() == 1 {
+        chapter_subjects.iter().next().map(|s| format!("{s} paper · {count} questions")).unwrap_or_else(|| format!("Mixed paper · {count} questions"))
+    } else {
+        format!("Mixed paper · {count} questions")
+    };
+
     sqlx::query("INSERT INTO papers(id,user_id,title,duration_min,created_at,share_token) VALUES(?,?,?,?,?,?)")
-        .bind(&paper)
-        .bind(uid)
-        .bind(&title)
-        .bind(duration)
-        .bind(Utc::now().to_rfc3339())
-        .bind(&share)
-        .execute(pool)
-        .await?;
+        .bind(&paper).bind(uid).bind(&title).bind(duration)
+        .bind(Utc::now().to_rfc3339()).bind(&share)
+        .execute(pool).await?;
     for (i, qid) in ids.iter().enumerate() {
         sqlx::query("INSERT INTO paper_questions(paper_id,question_id,ord) VALUES(?,?,?)")
-            .bind(&paper)
-            .bind(qid)
-            .bind(i as i64)
-            .execute(pool)
-            .await?;
+            .bind(&paper).bind(qid).bind(i as i64)
+            .execute(pool).await?;
     }
     Ok((paper, share))
 }

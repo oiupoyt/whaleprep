@@ -197,4 +197,34 @@ input[type=text],input[type=email],input[type=number],select{min-height:44px;pad
 /* The native checkbox is small by design, so the label around it carries the target. */
 .chk{min-height:44px}
 .chk input[type=checkbox]{width:20px;height:20px;margin-top:2px;flex:none}
+.opt{min-height:44px}
 .opt input[type=radio]{width:20px;height:20px;flex:none}
+
+/* ===== builder: subtopic picker =====
+   Chapters are the primary unit; subtopics expand inside them. */
+.subject-section{margin-bottom:20px}
+.subject-label{font-size:.7rem;letter-spacing:.08em;text-transform:uppercase;margin:0 0 8px}
+.chapter-group{margin-bottom:8px}
+.chapter-hd{display:flex;align-items:center;min-height:44px;background:var(--panel);padding:10px 12px;border:1px solid var(--border)}
+.chapter-hd b{color:#fff}
+.subtopic-list{padding:4px 12px 4px 32px;border:1px solid var(--border);border-top:0;display:none}
+.chapter-group.expanded .subtopic-list{display:block}
+.sub-chk{min-height:38px;padding:4px 0}
+.settings-sticky{position:sticky;top:72px}
+.picker-col,.settings-col{min-width:0}
+.build-note{font-variant-numeric:tabular-nums}
+.all-subj input[type=checkbox]{accent-color:var(--cyan)}
+@media(max-width:700px){
+  .settings-sticky{position:static}
+  .chapter-hd{background:none;padding:10px 0}
+  .subtopic-list{padding:4px 0 4px 20px}
+}
+
+/* ===== per-subject timers on exam screen =====
+   Each strip shows for its subject window and hides when that window closes. */
+.subj-timer-bar{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:8px}
+.subj-timer{display:flex;align-items:center;gap:8px;padding:6px 12px;background:var(--panel);border:1px solid var(--border);font-size:.8rem}
+.subj-timer b{color:#fff;min-width:5ch;font-variant-numeric:tabular-nums}
+.subj-timer.active{border-color:var(--cyan)}
+.subj-timer.warn{border-color:var(--amber)}
+.subj-timer.done{opacity:.4;text-decoration:line-through}
