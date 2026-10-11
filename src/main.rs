@@ -2,6 +2,7 @@ mod analytics;
 mod auth;
 mod db;
 mod exam;
+mod google;
 mod views;
 
 use std::sync::Arc;
@@ -41,12 +42,26 @@ async fn main() -> anyhow::Result<()> {
         .await?;
     sqlx::query("PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;").execute(&pool).await?;
     db::init_db(&pool).await?;
-    let ctx = Arc::new(Ctx { pool, base: base.clone() });
+    let client_id = std::env::var("GOOGLE_CLIENT_ID").unwrap_or_default();
+    let client_secret = std::env::var("GOOGLE_CLIENT_SECRET").unwrap_or_default();
+    let google = if client_id.is_empty() {
+        tracing::warn!("GOOGLE_CLIENT_ID is unset: the Google button stays hidden and only local sign-in works");
+        None
+    } else {
+        if client_secret.is_empty() {
+            tracing::warn!("GOOGLE_CLIENT_SECRET is unset: the popup flow still works, the full-page fallback does not");
+        }
+        tracing::info!("Google sign-in enabled for {}", &client_id[..client_id.len().min(16)]);
+        Some(Arc::new(google::Google::new(&client_id, &client_secret)))
+    };
+    let ctx = Arc::new(Ctx { pool, base: base.clone(), google_client_id: client_id, google });
     let static_dir = format!("{}/static", std::env::current_dir()?.display());
 
     let app = Router::new()
         .route("/", get(home))
         .route("/student", get(student_get).post(student_post))
+        .route("/student/google", post(google_callback))
+        .route("/student/google/callback", get(google_redirect))
         .route("/logout", get(auth::logout))
         .route("/terms", get(terms))
         .route("/privacy", get(privacy))
@@ -92,11 +107,143 @@ async fn student_get(State(ctx): State<CtxArc>, h: HeaderMap, q: Query<std::coll
     if auth::user_id(&ctx.pool, &h).await.is_some() {
         return Redirect::to(&format!("{}{}", ctx.base, next)).into_response();
     }
-    hx(views::student(&ctx, &next, None), StatusCode::OK).into_response()
+    // The fallback needs a PKCE verifier bound to this visit, held here rather than
+    // in a cookie so it cannot be read back by script.
+    let mut fallback = None;
+    if ctx.google.is_some() {
+        let state = google::new_state();
+        let verifier = google::new_verifier();
+        sqlx::query("INSERT INTO pkce(state, verifier, created_at) VALUES(?,?,?)")
+            .bind(&state)
+            .bind(&verifier)
+            .bind(chrono::Utc::now().to_rfc3339())
+            .execute(&ctx.pool)
+            .await
+            .ok();
+        let uri = format!("{}{}/student/google/callback", public_origin(&h), ctx.base);
+        fallback = Some((state, google::challenge(&verifier), uri));
+    }
+    hx(views::student(&ctx, &next, None, fallback), StatusCode::OK).into_response()
+}
+
+/// Scheme and host for the callback Google redirects back to, derived from the
+/// request so it works on a port or behind a tunnel without extra configuration.
+fn public_origin(h: &HeaderMap) -> String {
+    let host = h
+        .get(axum::http::header::HOST)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("localhost");
+    let scheme = if h
+        .get("x-forwarded-proto")
+        .and_then(|v| v.to_str().ok())
+        .is_some_and(|v| v.split(',').next().unwrap_or("http").trim() == "https")
+    {
+        "https"
+    } else {
+        "http"
+    };
+    format!("{scheme}://{host}")
 }
 
 async fn student_post(State(ctx): State<CtxArc>, Form(f): Form<auth::StudentForm>) -> axum::response::Response {
     auth::student_post(State(ctx), axum::Form(f)).await
+}
+
+#[derive(serde::Deserialize)]
+struct GoogleForm {
+    credential: String,
+    #[serde(default)]
+    next: Option<String>,
+}
+
+#[derive(serde::Deserialize)]
+struct GoogleRedirect {
+    code: Option<String>,
+    state: Option<String>,
+    error: Option<String>,
+}
+
+/// Verifies the ID token Google issued, then attaches the account to a session.
+/// A failure here is never trusted client-side: the token is re-checked here.
+async fn google_callback(State(ctx): State<CtxArc>, Form(f): Form<GoogleForm>) -> axum::response::Response {
+    let Some(g) = ctx.google.clone() else {
+        return auth::html_page(
+            views::student(&ctx, "/build", Some("Google sign-in is not configured on this server."), None),
+            StatusCode::BAD_REQUEST,
+        )
+        .into_response();
+    };
+
+    let claims = match g.verify(&f.credential).await {
+        Ok(c) => c,
+        Err(msg) => {
+            tracing::warn!("google sign-in rejected: {msg}");
+            return auth::html_page(views::student(&ctx, f.next.as_deref().unwrap_or("/build"), Some(&msg), None), StatusCode::UNAUTHORIZED)
+                .into_response();
+        }
+    };
+    sign_in_with_google(&ctx, &claims, f.next).await
+}
+
+/// The redirect fallback: Google sends the authorization code back here, and it is
+/// redeemed server side so no secret ever reaches the browser.
+async fn google_redirect(State(ctx): State<CtxArc>, h: HeaderMap, Query(q): Query<GoogleRedirect>) -> axum::response::Response {
+    let fail = |m: &str| auth::html_page(views::student(&ctx, "/build", Some(m), None), StatusCode::BAD_REQUEST).into_response();
+    let Some(g) = ctx.google.clone() else {
+        return fail("Google sign-in is not configured on this server.");
+    };
+    if let Some(e) = q.error.as_deref() {
+        return fail(&format!("Google declined that sign-in: {e}"));
+    }
+    let (Some(code), Some(state)) = (q.code, q.state) else {
+        return fail("That sign-in link is incomplete. Try again.");
+    };
+    // The state must match one issued here, and it is spent on first use.
+    let verifier: Option<String> = sqlx::query_scalar(
+        "SELECT verifier FROM pkce WHERE state=? AND created_at > ?",
+    )
+    .bind(&state)
+    .bind((chrono::Utc::now() - chrono::Duration::minutes(10)).to_rfc3339())
+    .fetch_optional(&ctx.pool)
+    .await
+    .unwrap_or(None);
+    sqlx::query("DELETE FROM pkce WHERE state=?").bind(&state).execute(&ctx.pool).await.ok();
+    let Some(verifier) = verifier else {
+        return fail("That sign-in link has expired or was not started here.");
+    };
+
+    let redirect_uri = format!("{}{}/student/google/callback", public_origin(&h), ctx.base);
+    let claims = match g.exchange_code(&code, &verifier, &redirect_uri).await {
+        Ok(c) => c,
+        Err(msg) => {
+            tracing::warn!("google code exchange failed: {msg}");
+            return auth::html_page(views::student(&ctx, "/build", Some(&msg), None), StatusCode::UNAUTHORIZED).into_response();
+        }
+    };
+    sign_in_with_google(&ctx, &claims, None).await
+}
+
+async fn sign_in_with_google(ctx: &CtxArc, claims: &google::Claims, next: Option<String>) -> axum::response::Response {
+    let email = claims.email.to_lowercase();
+    let name = claims.display_name();
+    let candidate = uuid::Uuid::new_v4().to_string();
+    if let Err(e) = sqlx::query("INSERT INTO users(id,name,email,created_at) VALUES(?,?,?,?) ON CONFLICT(email) DO UPDATE SET name=excluded.name")
+        .bind(&candidate)
+        .bind(&name)
+        .bind(&email)
+        .bind(chrono::Utc::now().to_rfc3339())
+        .execute(&ctx.pool)
+        .await
+    {
+        tracing::error!("could not store google user: {e}");
+    }
+    let uid: String = sqlx::query_scalar("SELECT id FROM users WHERE email=?")
+        .bind(&email)
+        .fetch_one(&ctx.pool)
+        .await
+        .unwrap_or(candidate);
+
+    auth::start_session(ctx, &uid, &name, &email, next).await
 }
 
 async fn build_page(State(ctx): State<CtxArc>, h: HeaderMap) -> axum::response::Response {

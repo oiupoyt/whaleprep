@@ -103,23 +103,128 @@ pub fn landing(ctx: &Ctx, q: i64, shifts: i64, subtopics: i64, subjects: i64, st
     shell(ctx, None, "Home", body)
 }
 
-pub fn student(ctx: &Ctx, next: &str, err: Option<&str>) -> String {
-    let e = err.map(|m| format!(r#"<p class="bad-t">{m}</p>"#)).unwrap_or_default();
+/// PKCE parameters for the full-page fallback: `(state, challenge, redirect uri)`.
+pub type Fallback = Option<(String, String, String)>;
+
+pub fn student(ctx: &Ctx, next: &str, err: Option<&str>, fallback: Fallback) -> String {
+    let e = err.map(|m| format!(r#"<p class="bad-t" role="alert">{m}</p>"#)).unwrap_or_default();
+    let (intro, google_block, action) = match (&fallback, ctx.google.is_some()) {
+        (Some(_), true) => (
+            "Sign in with Google and every paper you build, submit and analyse is attached to that account, so a score is still there on the next device.",
+            format!(
+                r#"<div id="google-btn" style="display:flex;justify-content:center;margin:18px 0;min-height:44px"></div>
+<form method="post" action="{b}/student/google" id="google-form" hidden>
+  <input type="hidden" name="credential" value="">
+  <input type="hidden" name="next" value="{next}">
+</form>
+<p class="dim" id="gsi-status" role="status">loading the Google button&hellip;</p>"#,
+                b = ctx.base,
+                next = esc(next)
+            ),
+            "sign in with an email instead",
+        ),
+        (None, true) => (
+            "Google sign-in is available but its button did not get its parameters. Refresh the page, or use the form below.",
+            String::new(),
+            "sign in",
+        ),
+        _ => (
+            "Google sign-in is switched off on this server because no client id was configured. The form below keys your papers to an email so the whole flow still works.",
+            String::new(),
+            "sign in",
+        ),
+    };
     let body = format!(
         r#"<h1>Sign in</h1>
-<p class="meta">This clone runs a local sign-in so you can use the whole flow without a Google account. Enter any name and email; your papers stay in this database.</p>
-<form method="post" action="{b}/student" style="max-width:420px;margin-top:18px">
+<p class="meta">{intro}</p>
+{google_block}
+<h2>{action}</h2>
+<form method="post" action="{b}/student" style="max-width:420px;margin-top:8px">
   <input type="hidden" name="next" value="{next}">
   <label for="name">name</label><input id="name" name="name" type="text" autocomplete="name" required>
   <label for="email">email</label><input id="email" name="email" type="email" autocomplete="email" required>
   {e}
-  <div style="margin-top:14px"><button class="btn primary" type="submit">sign in</button></div>
-</form>"#,
+  <div style="margin-top:14px"><button class="btn primary" type="submit">{action}</button></div>
+</form>
+{gsi_script}"#,
+        intro = intro,
+        google_block = google_block,
+        action = action,
         b = ctx.base,
         next = esc(next),
-        e = e
+        e = e,
+        gsi_script = match &fallback {
+            Some((state, challenge, redirect_uri)) if ctx.google.is_some() => {
+                gsi_script(&ctx.google_client_id, state, challenge, redirect_uri)
+            }
+            _ => String::new(),
+        }
     );
     shell(ctx, None, "Sign in", body)
+}
+
+/// Google Identity Services. The popup is the normal path; the anchor is the
+/// fallback for in-app browsers and hardened settings where a popup is refused.
+fn gsi_script(client_id: &str, state: &str, challenge: &str, redirect_uri: &str) -> String {
+    format!(
+        r#"<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script>
+(() => {{
+  const CLIENT_ID = {cid};
+  const STATUS = document.getElementById('gsi-status');
+  const FALLBACK = {url};
+
+  // The popup path: Google hands the credential to this page, which posts it on.
+  function onCredential(r) {{
+    const f = document.getElementById('google-form');
+    f.credential.value = r.credential;
+    f.submit();
+  }}
+
+  function wireFallback() {{
+    const a = document.getElementById('gsi-full');
+    a.href = 'https://accounts.google.com/o/oauth2/v2/auth'
+      + '?client_id=' + encodeURIComponent(CLIENT_ID)
+      + '&redirect_uri=' + encodeURIComponent(FALLBACK.redirect_uri)
+      + '&response_type=code'
+      + '&scope=' + encodeURIComponent('openid email profile')
+      + '&code_challenge=' + encodeURIComponent(FALLBACK.challenge)
+      + '&code_challenge_method=S256'
+      + '&state=' + encodeURIComponent(FALLBACK.state)
+      + '&prompt=select_account';
+  }}
+
+  function init() {{
+    try {{
+      google.accounts.id.initialize({{ client_id: CLIENT_ID, callback: onCredential, ux_mode: 'popup', context: 'signin' }});
+      const box = document.getElementById('google-btn');
+      google.accounts.id.renderButton(box, {{
+        theme: 'outline_black', size: 'large', text: 'signin_with', shape: 'rectangular',
+        width: Math.min(box.clientWidth || 320, 400),
+      }});
+      wireFallback();
+      STATUS.textContent = 'no popup? ';
+      STATUS.appendChild(document.getElementById('gsi-full'));
+    }} catch (err) {{
+      wireFallback();
+      STATUS.textContent = 'the Google button did not load. ';
+      STATUS.appendChild(document.getElementById('gsi-full'));
+    }}
+  }}
+
+  const link = document.createElement('a');
+  link.id = 'gsi-full';
+  link.href = '#';
+  link.textContent = 'use a full page instead';
+  link.addEventListener('click', e => {{ e.preventDefault(); wireFallback(); location.href = link.href; }});
+  if (window.google) init();
+  else window.addEventListener('load', init);
+}})();
+</script>"#,
+        cid = serde_json::to_string(client_id).unwrap_or_else(|_| "\"\"".into()),
+        url = serde_json::to_string(&serde_json::json!({ "redirect_uri": redirect_uri, "challenge": challenge, "state": state }))
+            .unwrap_or_else(|_| "{}".into())
+    )
 }
 
 pub fn legal(ctx: &Ctx, title: &str, body_md: &str) -> String {

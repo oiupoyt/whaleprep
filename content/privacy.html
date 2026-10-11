@@ -2,12 +2,14 @@
 <h3>What is stored</h3>
 <p class="meta">Your name and email, the papers you build, your answers to each question, how long you spent on each one, and the score of every submitted paper.</p>
 <h3>Where it lives</h3>
-<p class="meta">Everything is written to a SQLite file on the machine running this service. Nothing is sent to a third party. There is no analytics script, no tracking pixel, and no external font request beyond the Google Fonts stylesheet used for typography.</p>
-<h3>What is never collected</h3>
-<p class="meta">No contacts, no location, no device identifiers, no advertising profile.</p>
+<p class="meta">Everything is written to a SQLite file on the machine running this service. There is no analytics script, no tracking pixel, and no advertising profile.</p>
+<h3>Signing in with Google</h3>
+<p class="meta">If you sign in with Google, your browser contacts Google directly and Google returns a signed identity token to this server. The server checks that signature against Google's published keys before it trusts anything in it, then stores only your name and email address. Your Google password is never seen here, no Google account permissions are requested, and no data is sent back to Google. Google separately keeps its own record of the sign-in under its privacy policy.</p>
+<h3>Signing in without Google</h3>
+<p class="meta">The email form on the sign-in page does not contact Google or anything else. It writes the name and email you type straight to the database, with no password, so anyone who can reach the page could claim an address that is not theirs. Treat it as a practice account rather than a real one.</p>
 <h3>Who can read it</h3>
 <p class="meta">Anyone with access to the database file or to a signed-in browser session. Sessions are held in an HttpOnly cookie scoped to this site.</p>
 <h3>Deleting your data</h3>
-<p class="meta">Delete your account and every paper, answer and result attached to it by removing your row from the users table. Nothing is retained elsewhere, so that removal is complete.</p>
+<p class="meta">Delete your account and every paper, answer and result attached to it by removing your row from the users table. Nothing is retained elsewhere, so that removal is complete. Signing in with Google does not change this: the copy here is deleted on its own, and unlinking it from your Google account is a separate action you take at myaccount.google.com.</p>
 <h3>Questions bank</h3>
 <p class="meta">Question content is study material held in the same database. It is not personal data and is not linked to you beyond the papers you build from it.</p>

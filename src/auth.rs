@@ -6,6 +6,7 @@ use serde::Deserialize;
 use sqlx::SqlitePool;
 use std::sync::Arc;
 
+use crate::google::Google;
 use crate::views;
 
 pub const COOKIE: &str = "pyq_session";
@@ -13,6 +14,8 @@ pub const COOKIE: &str = "pyq_session";
 pub struct Ctx {
     pub pool: SqlitePool,
     pub base: String,
+    pub google_client_id: String,
+    pub google: Option<Arc<Google>>,
 }
 
 impl Ctx {
@@ -84,10 +87,10 @@ pub async fn student_post(State(ctx): State<Arc<Ctx>>, Form(f): Form<StudentForm
         .unwrap_or_else(|| "/build".into());
 
     if name.is_empty() || name.chars().count() > 80 {
-        return html_page(views::student(&ctx, &next, Some("Enter the name your account shows.")), StatusCode::BAD_REQUEST);
+        return html_page(views::student(&ctx, &next, Some("Enter the name your account shows."), None), StatusCode::BAD_REQUEST);
     }
     if !email.contains('@') || email.len() > 120 {
-        return html_page(views::student(&ctx, &next, Some("That email address does not look right.")), StatusCode::BAD_REQUEST);
+        return html_page(views::student(&ctx, &next, Some("That email address does not look right."), None), StatusCode::BAD_REQUEST);
     }
 
     let candidate = uuid::Uuid::new_v4().to_string();
@@ -119,6 +122,32 @@ pub async fn student_post(State(ctx): State<Arc<Ctx>>, Form(f): Form<StudentForm
         .status(StatusCode::FOUND)
         .header(axum::http::header::LOCATION, format!("{}{}", ctx.base, next))
         .header(axum::http::header::SET_COOKIE, cookie)
+        .body(axum::body::Body::empty())
+        .expect("static redirect response")
+}
+
+/// Creates a session for a verified identity and returns the redirect that carries it.
+pub async fn start_session(ctx: &Ctx, uid: &str, name: &str, email: &str, next: Option<String>) -> axum::response::Response {
+    let _ = sqlx::query("UPDATE users SET name=?, email=? WHERE id=?").bind(name).bind(email).bind(uid).execute(&ctx.pool).await;
+    let token = uuid::Uuid::new_v4().simple().to_string();
+    if let Err(e) = sqlx::query("INSERT INTO sessions(token,user_id,created_at) VALUES(?,?,?)")
+        .bind(&token)
+        .bind(uid)
+        .bind(Utc::now().to_rfc3339())
+        .execute(&ctx.pool)
+        .await
+    {
+        tracing::error!("could not start session: {e}");
+    }
+    tracing::info!("sign in: {email}");
+    let to = next.filter(|n| n.starts_with('/') && !n.contains("..")).unwrap_or_else(|| "/build".into());
+    axum::response::Response::builder()
+        .status(StatusCode::FOUND)
+        .header(axum::http::header::LOCATION, format!("{}{}", ctx.base, to))
+        .header(
+            axum::http::header::SET_COOKIE,
+            format!("{COOKIE}={token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=2592000"),
+        )
         .body(axum::body::Body::empty())
         .expect("static redirect response")
 }
