@@ -61,7 +61,13 @@ def sanitize(raw: str) -> str:
     # Collapse whitespace runs but keep single spaces inside math.
     text = re.sub(r"[ \t\xa0]+", " ", text)
     text = re.sub(r"\n\s*\n+", "\n", text)
-    return text.strip()
+    text = text.strip()
+    # Normalize math delimiters ($$/$, \matrix) so KaTeX renders inline.
+    # Shared with scripts/fix_math.py — keep the two in sync.
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from fix_math import fix_field
+
+    return fix_field(text)
 
 
 def shift_of(paper_title: str, exam_date) -> str:
