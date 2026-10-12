@@ -58,3 +58,14 @@ li table tbody thead tr th td span h3`, attributes always stripped,
 Re-run the importer against a newer pickle release. For NUM questions the
 upstream data carries no answers, so they are excluded until a verified
 answer source exists. The `answer` column for MCQ is a single letter.
+
+## Why NUM answers are not extracted from explanations
+
+Audited 2026-10-12: integer-question explanations do end with the numeric
+result (`= 80`, `Total 11`, `is 8`), but the phrasing varies per question
+(`Hence`, `Clearly`, `no. of integers in S is`, bare `= X` mid-derivation)
+and several tails contain multiple numbers. A regex would mis-key a
+meaningful fraction, and a wrong answer key teaches the wrong result —
+worse than no question. NUM import stays out until NTA final answer keys
+(authoritative per-shift source) are transcribed. The grader already
+supports NUM with 0.1% tolerance for hand-added questions.
