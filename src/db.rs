@@ -13,7 +13,7 @@ pub async fn init_db(pool: &SqlitePool) -> anyhow::Result<()> {
          CREATE TABLE IF NOT EXISTS mistake_tags(attempt_id TEXT NOT NULL, question_id INTEGER NOT NULL, tag TEXT NOT NULL, PRIMARY KEY(attempt_id, question_id, tag));
          CREATE TABLE IF NOT EXISTS sessions(token TEXT PRIMARY KEY, user_id TEXT NOT NULL, created_at TEXT NOT NULL);
          CREATE TABLE IF NOT EXISTS pkce(state TEXT PRIMARY KEY, verifier TEXT NOT NULL, created_at TEXT NOT NULL);
-         CREATE TABLE IF NOT EXISTS seen_questions(user_id TEXT NOT NULL, question_id INTEGER NOT NULL, PRIMARY KEY(user_id, question_id));
+         CREATE TABLE IF NOT EXISTS seen_questions(user_id TEXT NOT NULL, question_id INTEGER NOT NULL, seen_at TEXT NOT NULL DEFAULT '', PRIMARY KEY(user_id, question_id));
          CREATE INDEX IF NOT EXISTS idx_questions_chapter ON questions(chapter_id);
          CREATE INDEX IF NOT EXISTS idx_questions_subtopic ON questions(subtopic_id);
          CREATE INDEX IF NOT EXISTS idx_questions_subject ON questions(subject);
@@ -26,6 +26,29 @@ pub async fn init_db(pool: &SqlitePool) -> anyhow::Result<()> {
     )
     .execute(pool)
     .await?;
+    // Migrate pre-seen_at databases: CREATE TABLE IF NOT EXISTS cannot add
+    // the column to an existing table, so ALTER it in before creating the
+    // index that references it.
+    {
+        use sqlx::Row;
+        let cols: Vec<String> = sqlx::query("PRAGMA table_info(seen_questions)")
+            .fetch_all(pool)
+            .await
+            .unwrap_or_default()
+            .iter()
+            .map(|r| r.get::<String, _>("name"))
+            .collect();
+        if !cols.iter().any(|c| c == "seen_at") {
+            sqlx::query("ALTER TABLE seen_questions ADD COLUMN seen_at TEXT NOT NULL DEFAULT ''")
+                .execute(pool)
+                .await
+                .ok();
+        }
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_seen_user_time ON seen_questions(user_id, seen_at)")
+            .execute(pool)
+            .await
+            .ok();
+    }
     let (n,): (i64,) = sqlx::query_as("SELECT COUNT(*) FROM questions")
         .fetch_one(pool)
         .await?;

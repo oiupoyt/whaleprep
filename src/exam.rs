@@ -125,9 +125,45 @@ pub async fn build_paper(pool: &SqlitePool, uid: &str, f: &BuildForm) -> anyhow:
     // Deduplicate: a question can match multiple subtopics if the form sent both.
     ids.sort_unstable();
     ids.dedup();
+    // FIFO recycle: unseen-only starves once a subtopic is exhausted. Top up
+    // from longest-ago-seen first so familiar questions return oldest first
+    // instead of erroring. seen_at='' rows (pre-migration) sort first.
+    let mut recycled = 0;
+    if unseen && (ids.len() as i64) < count as i64 {
+        let need = count as usize - ids.len();
+        let scope_ch: String = chapters.iter().map(|c| c.to_string()).collect::<Vec<_>>().join(",");
+        let scope_st: String = subtopics.iter().map(|st| st.to_string()).collect::<Vec<_>>().join(",");
+        // Static query per branch (sqlx); scope filter applied in Rust below.
+        let seen_rows: Vec<(i64, i64, i64)> = sqlx::query_as(
+            "SELECT q.id, q.chapter_id, q.subtopic_id FROM questions q
+             JOIN seen_questions sq ON sq.question_id=q.id AND sq.user_id=?
+             ORDER BY sq.seen_at ASC",
+        )
+        .bind(uid)
+        .fetch_all(pool)
+        .await
+        .unwrap_or_default();
+        let in_scope = |ch: i64, st: i64| {
+            chapters.contains(&ch)
+                && (subtopics.is_empty() || subtopics.contains(&st))
+        };
+        let _ = (scope_ch, scope_st);
+        for (qid, ch, st) in seen_rows {
+            if ids.len() >= count as usize {
+                break;
+            }
+            if !in_scope(ch, st) || ids.contains(&qid) {
+                continue;
+            }
+            ids.push(qid);
+            recycled += 1;
+        }
+        let _ = need;
+    }
     if ids.is_empty() {
         anyhow::bail!("No questions left for that selection. Turn off 'unseen only' to reuse questions.");
     }
+    let _ = recycled;
     let seed = uid.len() as u64 ^ chapters.iter().sum::<i64>() as u64 ^ count as u64;
     shuffle(&mut ids, seed);
     ids.truncate(count);
@@ -343,9 +379,11 @@ pub async fn finalize(pool: &SqlitePool, attempt: &str) -> anyhow::Result<(i32, 
         .await?;
     for r in &rows {
         if !r.selected.trim().is_empty() {
-            sqlx::query("INSERT OR IGNORE INTO seen_questions(user_id,question_id) VALUES(?,?)")
+            let now = Utc::now().to_rfc3339();
+            sqlx::query("INSERT INTO seen_questions(user_id,question_id,seen_at) VALUES(?,?,?) ON CONFLICT(user_id,question_id) DO UPDATE SET seen_at=excluded.seen_at")
                 .bind(&uid)
                 .bind(r.q.id)
+                .bind(&now)
                 .execute(pool)
                 .await?;
         }
