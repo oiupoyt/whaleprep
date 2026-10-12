@@ -1,4 +1,4 @@
-# PYQ clone
+# WhalePrep
 
 A working full-stack copy of the ZenithPrep PYQ practice app: build a paper from
 JEE Main style questions, take it on a timed CBT screen with +4 / −1 marking,

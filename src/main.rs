@@ -32,7 +32,7 @@ async fn main() -> anyhow::Result<()> {
     // Defaults to info; RUST_LOG=debug adds the query log.
     tracing_subscriber::fmt()
         .with_env_filter(
-            tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "zenith_pyq_clone=info,sqlx=warn".into()),
+            tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "whaleprep=info,sqlx=warn".into()),
         )
         .init();
     let db_path = std::env::var("PYQ_DB").unwrap_or_else(|_| "pyq.db".into());

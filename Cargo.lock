@@ -3009,6 +3009,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "whaleprep"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "axum",
+ "base64 0.23.1",
+ "chrono",
+ "jsonwebtoken",
+ "rand 0.8.8",
+ "reqwest",
+ "rsa",
+ "serde",
+ "serde_json",
+ "serde_urlencoded",
+ "sha2 0.11.0",
+ "sqlx",
+ "tokio",
+ "tower-cookies",
+ "tower-http 0.7.1",
+ "tracing",
+ "tracing-subscriber",
+ "uuid",
+]
+
+[[package]]
 name = "whoami"
 version = "2.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3202,31 +3227,6 @@ dependencies = [
  "quote",
  "syn 3.0.7",
  "synstructure",
-]
-
-[[package]]
-name = "zenith-pyq-clone"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "axum",
- "base64 0.23.1",
- "chrono",
- "jsonwebtoken",
- "rand 0.8.8",
- "reqwest",
- "rsa",
- "serde",
- "serde_json",
- "serde_urlencoded",
- "sha2 0.11.0",
- "sqlx",
- "tokio",
- "tower-cookies",
- "tower-http 0.7.1",
- "tracing",
- "tracing-subscriber",
- "uuid",
 ]
 
 [[package]]

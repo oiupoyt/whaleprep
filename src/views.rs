@@ -81,7 +81,7 @@ fn nav(ctx: &Ctx, user: Option<&str>) -> String {
 
 fn foot(ctx: &Ctx) -> String {
     format!(
-        r#"<footer><span>PYQ clone · running on sqlite · built as a working copy of zenithprepare.com/PYQ</span><span><a href="{b}/terms">terms</a> · <a href="{b}/privacy">privacy</a></span></footer></body></html>"#,
+        r#"<footer><span>WhalePrep · JEE Main PYQ practice</span><span><a href="{b}/terms">terms</a> · <a href="{b}/privacy">privacy</a></span></footer></body></html>"#,
         b = ctx.base
     )
 }
