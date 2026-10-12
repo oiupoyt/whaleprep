@@ -100,17 +100,32 @@ pub async fn user_id(pool: &SqlitePool, h: &HeaderMap) -> Option<String> {
     }
     let token = token?;
     tracing::debug!("session token={token}");
-    match sqlx::query_scalar::<_, String>("SELECT user_id FROM sessions WHERE token=?")
-        .bind(token)
-        .fetch_optional(pool)
-        .await
-    {
-        Ok(found) => {
-            tracing::debug!("session lookup -> {:?}", found);
-            found
+    // Sessions live 30 days (matching the cookie Max-Age). Stale rows are
+    // deleted on sight so repeat sign-ins don't orphan tokens forever.
+    let row: Option<(String, String)> =
+        sqlx::query_as("SELECT user_id, created_at FROM sessions WHERE token=?")
+            .bind(token)
+            .fetch_optional(pool)
+            .await
+            .unwrap_or(None);
+    match row {
+        Some((uid, created)) => {
+            let fresh = chrono::DateTime::parse_from_rfc3339(&created)
+                .map(|t| (chrono::Utc::now() - t.with_timezone(&chrono::Utc)).num_days() < 30)
+                .unwrap_or(false);
+            if !fresh {
+                sqlx::query("DELETE FROM sessions WHERE token=?")
+                    .bind(token)
+                    .execute(pool)
+                    .await
+                    .ok();
+                return None;
+            }
+            tracing::debug!("session lookup -> {:?}", uid);
+            Some(uid)
         }
-        Err(e) => {
-            tracing::error!("session lookup failed: {e}");
+        None => {
+            tracing::debug!("session lookup -> None");
             None
         }
     }
