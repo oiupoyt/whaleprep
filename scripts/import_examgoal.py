@@ -85,16 +85,17 @@ def main() -> None:
     ap.add_argument("--pkl", default=None)
     args = ap.parse_args()
 
-    pkl_path = Path(args.pkl) if args.pkl else Path("/tmp/pyqeval/db.pkl")
+    default_pkl = Path(__file__).resolve().parent / "examgoal_db.pkl"
+    pkl_path = Path(args.pkl) if args.pkl else default_pkl
     if not pkl_path.exists():
         print(f"downloading {PKL_URL} ...", flush=True)
         pkl_path.parent.mkdir(parents=True, exist_ok=True)
         urllib.request.urlretrieve(PKL_URL, pkl_path)
     print(f"loading {pkl_path} ({pkl_path.stat().st_size / 1e6:.1f} MB) ...", flush=True)
 
-    sys.path.insert(0, "/tmp/pyqeval")
-    from pkg.core.question import Question
-    from pkg.core.chapter import Chapter
+    sys.path.insert(0, str(Path(__file__).resolve().parent / "examgoal_model"))
+    from question import Question
+    from chapter import Chapter
 
     class FixUnpickler(pickle.Unpickler):
         def find_class(self, module, name):
