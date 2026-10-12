@@ -68,6 +68,7 @@ async fn main() -> anyhow::Result<()> {
             std::time::Instant::now() - std::time::Duration::from_secs(61),
             (0, 0, 0, 0, 0),
         )),
+        save_hits: std::sync::Mutex::new(std::collections::HashMap::new()),
     });
     let static_dir = format!("{}/static", std::env::current_dir()?.display());
 
@@ -383,6 +384,12 @@ async fn save_answers(State(ctx): State<CtxArc>, h: HeaderMap, Path(attempt): Pa
         Some(u) => u,
         None => return hx("{\"error\":\"sign in first\"}".into(), StatusCode::UNAUTHORIZED),
     };
+    if !ctx.save_allowed(&uid) {
+        return hx(
+            "{\"error\":\"saving too fast, retry shortly\"}".into(),
+            StatusCode::TOO_MANY_REQUESTS,
+        );
+    }
     match exam::save_answers(&ctx.pool, &attempt, &uid, &body).await {
         Ok(_) => hx("{\"ok\":true}".into(), StatusCode::OK),
         Err(e) => {

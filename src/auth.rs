@@ -20,9 +20,35 @@ pub struct Ctx {
     /// change on import, so there is no reason to run five aggregate
     /// subselects on every homepage hit.
     pub stats_cache: std::sync::Mutex<(std::time::Instant, (i64, i64, i64, i64, i64))>,
+    /// Autosave rate limiter: user id -> (window start, hits in window).
+    /// The exam screen autosaves on every answer, so a stuck client retrying
+    /// in a tight loop could otherwise hammer SQLite's single writer.
+    pub save_hits: std::sync::Mutex<std::collections::HashMap<String, (std::time::Instant, u32)>>,
 }
 
 impl Ctx {
+    /// True when this user may autosave now (30 saves per rolling minute).
+    pub fn save_allowed(&self, uid: &str) -> bool {
+        const LIMIT: u32 = 30;
+        const WINDOW: std::time::Duration = std::time::Duration::from_secs(60);
+        let mut guard = self.save_hits.lock().unwrap();
+        // Opportunistic cleanup so the map cannot grow without bound.
+        if guard.len() > 4096 {
+            let now = std::time::Instant::now();
+            guard.retain(|_, (t, _)| now.duration_since(*t) < WINDOW * 2);
+        }
+        let entry = guard.entry(uid.to_string()).or_insert((std::time::Instant::now(), 0));
+        if entry.0.elapsed() >= WINDOW {
+            *entry = (std::time::Instant::now(), 1);
+            return true;
+        }
+        if entry.1 >= LIMIT {
+            return false;
+        }
+        entry.1 += 1;
+        true
+    }
+
     pub async fn bank_stats(&self) -> (i64, i64, i64, i64, i64) {
         {
             let guard = self.stats_cache.lock().unwrap();
