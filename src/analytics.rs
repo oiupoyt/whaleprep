@@ -158,6 +158,22 @@ pub struct Trend {
     pub seen: i32,
 }
 
+/// Mistake-tag rollup across all submitted attempts: (tag, count), most
+/// common first. Tags are a fixed vocabulary enforced at write time.
+pub async fn mistake_rollup(pool: &SqlitePool, uid: &str) -> Vec<(String, i64)> {
+    let rows: Vec<(String, i64)> = sqlx::query_as(
+        "SELECT mt.tag, COUNT(*) FROM mistake_tags mt
+         JOIN attempts at ON at.id=mt.attempt_id
+         WHERE at.user_id=? AND at.submitted_at IS NOT NULL
+         GROUP BY mt.tag ORDER BY COUNT(*) DESC",
+    )
+    .bind(uid)
+    .fetch_all(pool)
+    .await
+    .unwrap_or_default();
+    rows
+}
+
 pub async fn weakest(pool: &SqlitePool, uid: &str) -> anyhow::Result<Vec<(Bucket, String, String)>> {
     let rows = sqlx::query(
         "SELECT c.name AS chapter, s.name AS subtopic, q.answer, a.selected, q.qtype

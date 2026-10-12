@@ -619,6 +619,42 @@ pub struct RowView<'a> {
     pub marks: i32,
     pub correct: bool,
     pub time_secs: i64,
+    pub attempt_id: &'a str,
+    pub tags: Vec<String>,
+}
+
+const MISTAKE_TAGS: &[(&str, &str)] = &[
+    ("concept", "concept gap"),
+    ("calculation", "calculation slip"),
+    ("misread", "misread question"),
+    ("time", "ran out of time"),
+    ("guess", "blind guess"),
+];
+
+fn mistake_form(base: &str, attempt: &str, qid: i64, state: &str, tags: &[String]) -> String {
+    if state == "correct" {
+        return String::new();
+    }
+    let btns: String = MISTAKE_TAGS
+        .iter()
+        .map(|(v, label)| {
+            let on = tags.iter().any(|t| t == v);
+            format!(
+                r#"<button type="submit" name="tag" value="{v}" class="btn sm{cls}">{label}</button>"#,
+                v = v,
+                cls = if on { " primary" } else { "" },
+                label = label
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("");
+    format!(
+        r#"<form method="post" action="{base}/result/{attempt}/tag/{qid}" class="mistake-row"><span class="dim">why lost?</span> {btns}</form>"#,
+        base = base,
+        attempt = attempt,
+        qid = qid,
+        btns = btns
+    )
 }
 
 fn seg(b: &Bucket) -> String {
@@ -650,6 +686,7 @@ fn bucket_rows(items: &[Bucket]) -> String {
 }
 
 pub fn result(ctx: &Ctx, user: &str, _attempt_id: &str, a: &Analysis, rows: &[RowView]) -> String {
+    let base = ctx.base.clone();
     let detail: String = rows
         .iter()
         .enumerate()
@@ -675,7 +712,7 @@ pub fn result(ctx: &Ctx, user: &str, _attempt_id: &str, a: &Analysis, rows: &[Ro
   <p style="margin:12px 0 6px;color:#fff">{stem}</p>
   <p style="margin-bottom:8px">{opts}</p>
   <p class="dim" style="margin-bottom:8px">{sub2} · {ch} · {year} {shift} · {difficulty} · {qtime}</p>
-  <p style="color:#38bdf8">{sol}</p></details>"#,
+  <p style="color:#38bdf8">{sol}</p>{mform}</details>"#,
                 n = i + 1,
                 subj = esc(&r.q.subject),
                 cls = cls,
@@ -689,7 +726,8 @@ pub fn result(ctx: &Ctx, user: &str, _attempt_id: &str, a: &Analysis, rows: &[Ro
                 shift = esc(&r.q.shift),
                 difficulty = esc(&r.q.difficulty),
                 qtime = if r.time_secs > 0 { format!("{}s spent", r.time_secs) } else { "no time recorded".to_string() },
-                sol = rich(&r.q.solution)
+                sol = rich(&r.q.solution),
+                mform = mistake_form(&base, r.attempt_id, r.q.id, state, &r.tags)
             )
         })
         .collect();
@@ -765,7 +803,7 @@ pub fn history(ctx: &Ctx, user: &str, tests: &[TestRow]) -> String {
     shell(ctx, Some(user), "History", body)
 }
 
-pub fn dashboard(ctx: &Ctx, user: &str, tests: &[TestRow], weak: &[(Bucket, String, String)], notes: &[String], totals: (i32, i32, i32, i32)) -> String {
+pub fn dashboard(ctx: &Ctx, user: &str, tests: &[TestRow], weak: &[(Bucket, String, String)], notes: &[String], totals: (i32, i32, i32, i32), mistakes: &[(String, i64)]) -> String {
     let (taken, marks, gained, lost) = totals;
     let trend: String = if tests.is_empty() {
         String::new()
@@ -801,6 +839,36 @@ pub fn dashboard(ctx: &Ctx, user: &str, tests: &[TestRow], weak: &[(Bucket, Stri
         })
         .collect();
     let notes_html: String = notes.iter().map(|n| format!("<li>{}</li>", esc(n))).collect();
+    let mistakes_html: String = if mistakes.is_empty() {
+        String::new()
+    } else {
+        let total: i64 = mistakes.iter().map(|(_, n)| n).sum::<i64>().max(1);
+        let rows: String = mistakes
+            .iter()
+            .map(|(tag, n)| {
+                let label = match tag.as_str() {
+                    "concept" => "concept gap",
+                    "calculation" => "calculation slip",
+                    "misread" => "misread question",
+                    "time" => "ran out of time",
+                    "guess" => "blind guess",
+                    t => t,
+                };
+                format!(
+                    r#"<tr><td>{label}</td><td>{n}</td><td style="width:38%"><div class="seg"><i style="width:{p}%;background:#38bdf8"></i></div></td><td class="dim">{p}%</td></tr>"#,
+                    label = esc(label),
+                    n = n,
+                    p = (*n as f64 / total as f64 * 100.0).round() as i64
+                )
+            })
+            .collect();
+        format!(
+            r#"<h2>why you lose marks</h2>
+<div class="card table-wrap"><table><thead><tr><th>mistake type</th><th>count</th><th></th><th></th></tr></thead><tbody>{rows}</tbody></table></div>
+<p class="dim" style="margin-top:8px">Tag lost questions on any result page; the most common reason surfaces here.</p>"#,
+            rows = rows
+        )
+    };
     let body = if tests.is_empty() {
         format!(
             r#"<h1>Dashboard</h1><div class="card" style="margin-top:16px;max-width:60ch"><h3>No test data yet</h3><p class="meta">The trend, the weak-subtopic table and the coach notes all come from papers you submit, so there is nothing to show until the first one is done.</p><p style="margin-top:12px"><a class="btn primary" href="{b}/build">build a paper</a></p></div>"#,
@@ -818,9 +886,11 @@ pub fn dashboard(ctx: &Ctx, user: &str, tests: &[TestRow], weak: &[(Bucket, Stri
 {trend}
 <h2>weakest subtopics across all papers</h2>
 <div class="card table-wrap"><table><thead><tr><th>subtopic</th><th>seen</th><th>wrong</th><th>blank</th><th></th><th></th></tr></thead><tbody>{weak}</tbody></table></div>
+{mistakes_html}
 <h2>coach notes</h2>
 <div class="card"><ul style="padding-left:18px;display:grid;gap:6px">{notes}</ul><p class="dim" style="margin-top:10px">Written from your own submitted papers. No data leaves this machine.</p></div>
 <p style="margin-top:18px"><a class="btn" href="{b}/history">all papers</a></p>"#,
+            mistakes_html = mistakes_html,
             taken = taken,
             marks = marks,
             gained = gained,

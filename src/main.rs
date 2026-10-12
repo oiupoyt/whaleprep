@@ -75,6 +75,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/attempt/{attempt}/answer", post(save_answers))
         .route("/attempt/{attempt}/submit", post(submit))
         .route("/result/{attempt}", get(result_page))
+        .route("/result/{attempt}/tag/{qid}", post(tag_toggle))
         .route("/history", get(history_page))
         .route("/dashboard", get(dashboard_page))
         .route("/s/{token}", get(shared_paper))
@@ -460,11 +461,80 @@ async fn result_page(State(ctx): State<CtxArc>, h: HeaderMap, Path(attempt): Pat
         }
     };
     let a = analyse(&rows, score, max, used);
+    // Existing tags per question so the form shows current state.
+    let tag_rows: Vec<(i64, String)> = sqlx::query_as(
+        "SELECT question_id, tag FROM mistake_tags WHERE attempt_id=?",
+    )
+    .bind(&attempt)
+    .fetch_all(&ctx.pool)
+    .await
+    .unwrap_or_default();
     let rv: Vec<views::RowView> = rows
         .iter()
-        .map(|r| views::RowView { q: &r.q, selected: &r.selected, marks: r.marks, correct: r.correct, time_secs: r.time_secs })
+        .map(|r| {
+            let tags: Vec<String> = tag_rows
+                .iter()
+                .filter(|(qid, _)| *qid == r.q.id)
+                .map(|(_, t)| t.clone())
+                .collect();
+            views::RowView {
+                q: &r.q,
+                selected: &r.selected,
+                marks: r.marks,
+                correct: r.correct,
+                time_secs: r.time_secs,
+                attempt_id: &attempt,
+                tags,
+            }
+        })
         .collect();
     hx(views::result(&ctx, &name, &attempt, &a, &rv), StatusCode::OK).into_response()
+}
+
+#[derive(serde::Deserialize)]
+struct TagForm {
+    tag: String,
+}
+
+async fn tag_toggle(
+    State(ctx): State<CtxArc>,
+    h: HeaderMap,
+    Path((attempt, qid)): Path<(String, i64)>,
+    Form(f): Form<TagForm>,
+) -> axum::response::Response {
+    let (uid, _name) = match ctx.require_user(&h).await {
+        Ok(v) => v,
+        Err(r) => return r,
+    };
+    let owned: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM attempts WHERE id=? AND user_id=?")
+        .bind(&attempt)
+        .bind(&uid)
+        .fetch_one(&ctx.pool)
+        .await
+        .unwrap_or(0);
+    if owned == 0 {
+        return hx(views::error(&ctx, 404, ""), StatusCode::NOT_FOUND).into_response();
+    }
+    if !["concept", "calculation", "misread", "time", "guess"].contains(&f.tag.as_str()) {
+        return Redirect::to(&format!("{}/result/{attempt}", ctx.base)).into_response();
+    }
+    let n: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM mistake_tags WHERE attempt_id=? AND question_id=? AND tag=?")
+        .bind(&attempt)
+        .bind(qid)
+        .bind(&f.tag)
+        .fetch_one(&ctx.pool)
+        .await
+        .unwrap_or(0);
+    if n > 0 {
+        sqlx::query("DELETE FROM mistake_tags WHERE attempt_id=? AND question_id=? AND tag=?")
+            .bind(&attempt).bind(qid).bind(&f.tag)
+            .execute(&ctx.pool).await.ok();
+    } else {
+        sqlx::query("INSERT OR IGNORE INTO mistake_tags(attempt_id,question_id,tag) VALUES(?,?,?)")
+            .bind(&attempt).bind(qid).bind(&f.tag)
+            .execute(&ctx.pool).await.ok();
+    }
+    Redirect::to(&format!("{}/result/{attempt}", ctx.base)).into_response()
 }
 
 async fn history_page(State(ctx): State<CtxArc>, h: HeaderMap) -> axum::response::Response {
@@ -483,6 +553,7 @@ async fn dashboard_page(State(ctx): State<CtxArc>, h: HeaderMap) -> axum::respon
     };
     let tests = analytics::history(&ctx.pool, &uid).await.unwrap_or_default();
     let weak = analytics::weakest(&ctx.pool, &uid).await.unwrap_or_default();
+    let mistakes = analytics::mistake_rollup(&ctx.pool, &uid).await;
     let marks: i32 = tests.iter().map(|t| t.score).sum();
     let gained: i32 = tests.iter().map(|t| t.right).sum();
     let lost: i32 = tests.iter().map(|t| t.wrong).sum();
@@ -501,7 +572,7 @@ async fn dashboard_page(State(ctx): State<CtxArc>, h: HeaderMap) -> axum::respon
         },
         &tests,
     );
-    hx(views::dashboard(&ctx, &name, &tests, &weak, &notes, (tests.len() as i32, marks, gained, lost)), StatusCode::OK).into_response()
+    hx(views::dashboard(&ctx, &name, &tests, &weak, &notes, (tests.len() as i32, marks, gained, lost), &mistakes), StatusCode::OK).into_response()
 }
 
 async fn shared_paper(State(ctx): State<CtxArc>, Path(token): Path<String>) -> axum::response::Response {
