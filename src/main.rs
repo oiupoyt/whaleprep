@@ -254,7 +254,7 @@ async fn sign_in_with_google(ctx: &CtxArc, claims: &google::Claims, next: Option
 async fn load_chapter_blocks(pool: &sqlx::SqlitePool) -> Vec<views::SubjectBlock> {
     use sqlx::Row;
     let rows = sqlx::query(
-        "SELECT c.id, c.subject, c.name, s.id AS sub_id, s.name AS sub,          (SELECT COUNT(*) FROM questions q WHERE q.chapter_id=c.id) AS n          FROM chapters c JOIN subtopics s ON s.chapter_id=c.id          ORDER BY c.subject, c.name, s.name",
+        "SELECT c.id, c.subject, c.name, s.id AS sub_id, s.name AS sub, COALESCE(qc.n,0) AS n FROM chapters c JOIN subtopics s ON s.chapter_id=c.id LEFT JOIN (SELECT chapter_id, COUNT(*) AS n FROM questions GROUP BY chapter_id) qc ON qc.chapter_id=c.id ORDER BY c.subject, c.name, s.name",
     )
     .fetch_all(pool)
     .await

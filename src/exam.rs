@@ -94,19 +94,9 @@ pub async fn build_paper(pool: &SqlitePool, uid: &str, f: &BuildForm) -> anyhow:
     };
 
     let mut ids: Vec<i64> = Vec::new();
+    // Chapters × subtopics: one indexed lookup per pair (sqlx needs a static
+    // string per branch, hence the unseen/not split inline).
     for ch in &chapters {
-        // Four branches: unseen×subtopic filter vs not.
-        // sqlx needs a static query string per branch.
-        let rows: Vec<sqlx::sqlite::SqliteRow> = if !subtopics.is_empty() && unseen {
-            sqlx::query(
-                "SELECT q.id FROM questions q                  WHERE q.chapter_id=? AND q.subtopic_id=?                  AND q.id NOT IN (SELECT question_id FROM seen_questions WHERE user_id=?)"
-            )
-            // For each chapter, collect questions from matching subtopics.
-            .bind(ch).bind(0i64).bind(uid) // placeholder; handled per-subtopic below
-            .fetch_all(pool).await.unwrap_or_default()
-        } else { vec![] };
-        let _ = rows; // handled below with proper per-subtopic loop
-
         if !subtopics.is_empty() {
             for st in &subtopics {
                 let rows: Vec<sqlx::sqlite::SqliteRow> = if unseen {
