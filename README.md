@@ -1,14 +1,16 @@
 # WhalePrep
 
-A working full-stack copy of the ZenithPrep PYQ practice app: build a paper from
-JEE Main style questions, take it on a timed CBT screen with +4 / −1 marking,
-then read the analysis and progress dashboard.
+JEE Main PYQ practice: build a paper from 9,813 real previous-year questions
+(2002–2025, Physics/Chemistry/Maths), take it on a timed CBT screen with +4 /
+−1 marking and per-subject clocks, tag why you lost each question, then read
+the analysis and progress dashboard.
 
-Rust + Axum + SQLite. Server-rendered HTML, vanilla JS, no frontend framework.
+Rust + Axum + SQLite. Server-rendered HTML, KaTeX math, vanilla JS, no
+frontend framework.
 
 ## Run
 
-    cargo run
+    cargo run --release
 
 Then open http://127.0.0.1:8080 and sign in with any name and email.
 
@@ -21,6 +23,17 @@ Environment:
 | `PYQ_BASE` | empty              | URL prefix when mounted in a subpath |
 | `GOOGLE_CLIENT_ID` | empty    | enables Google sign-in; unset hides the button |
 | `GOOGLE_CLIENT_SECRET` | empty | needed only by the full-page fallback |
+
+## Question bank
+
+A fresh database seeds 24 hand-written questions so the app works offline.
+For the real bank:
+
+    python3 scripts/import_examgoal.py pyq.db
+
+This pulls the MIT-licensed 14,973-question pickle and imports the 9,813
+fully-text MCQs with verified single answers. Idempotent — safe to re-run.
+See [DATA.md](DATA.md) for the source, the keep rule, and the schema mapping.
 
 ## Google sign-in
 
@@ -69,15 +82,17 @@ Posting it to `/student/google` returns 401 and creates no user.
 | `POST /student/google` | verifies a Google ID token, signs in |
 | `GET /student/google/callback` | redeems the authorization code for the full-page flow |
 | `GET /logout`             | clears the session                            |
-| `GET /build`, `POST /build`   | chapter picker and paper generation        |
+| `GET /build`, `POST /build`   | chapter/subtopic picker and paper generation |
 | `POST /attempt/:paper`    | starts or resumes an attempt                 |
 | `GET /attempt/:paper`     | the CBT screen                                |
 | `POST /attempt/:id/answer` | JSON autosave of one answer                  |
 | `POST /attempt/:id/submit` | grades and closes the paper                  |
 | `GET /result/:attempt`    | score, accuracy and per-question analysis     |
+| `POST /result/:attempt/tag/:qid` | toggles a why-lost tag on one question |
+| `GET /paper/:id`          | owner shortcut to the attempt screen          |
 | `GET /history`            | every submitted paper                         |
-| `GET /dashboard`          | cross-paper trend, weak subtopics, coach notes |
-| `GET /s/:token`           | public paper view, never a score              |
+| `GET /dashboard`          | trend, weak subtopics, mistake rollup, coach notes |
+| `GET /s/:token`           | public paper view with take-this-paper CTA     |
 | `GET /api/attempt/:id/state` | autosaved answers as JSON                 |
 
 ## Marking
@@ -87,10 +102,28 @@ compare against a 0.1 percent tolerance so `20.01` is accepted for `20`.
 
 ## Question selection
 
-A paper is drawn from the chosen chapters, shuffled with a seed derived from the
-request, and trimmed to the requested length. With "unseen questions only" the
-query excludes anything already answered by that user, so the same question does
-not come back by accident.
+A paper is drawn from the chosen chapters or subtopics, shuffled with a seed
+derived from the request, and trimmed to the requested length. With "unseen
+questions only" the query excludes anything already answered by that user; once
+a subtopic is exhausted, the longest-ago-seen questions recycle first instead
+of erroring. JEE mode sets 60 minutes per subject with independent countdown
+strips that auto-advance.
+
+## Measured performance (9,837-question bank, local loopback)
+
+| metric | value |
+|---|---|
+| release binary | 17 MB |
+| populated DB | 12.8 MB |
+| resident memory | ~24 MB |
+| `/build` latency | p50 3 ms, p95 8 ms |
+| `/build` throughput | ~940 req/s at 20 concurrent |
+| autosave writes | ~470/s, p95 23 ms |
+| import time | ~10 s first run, ~3 s re-run |
+
+Recommended floor: **1 vCPU / 512 MB RAM / 5 GB disk**. Comfortable headroom:
+**1 vCPU / 1 GB RAM / 10 GB SSD**. No Postgres, no Redis, no object storage —
+one static binary plus one SQLite file.
 
 ## Tests
 
