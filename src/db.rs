@@ -13,7 +13,16 @@ pub async fn init_db(pool: &SqlitePool) -> anyhow::Result<()> {
          CREATE TABLE IF NOT EXISTS mistake_tags(attempt_id TEXT NOT NULL, question_id INTEGER NOT NULL, tag TEXT NOT NULL, PRIMARY KEY(attempt_id, question_id, tag));
          CREATE TABLE IF NOT EXISTS sessions(token TEXT PRIMARY KEY, user_id TEXT NOT NULL, created_at TEXT NOT NULL);
          CREATE TABLE IF NOT EXISTS pkce(state TEXT PRIMARY KEY, verifier TEXT NOT NULL, created_at TEXT NOT NULL);
-         CREATE TABLE IF NOT EXISTS seen_questions(user_id TEXT NOT NULL, question_id INTEGER NOT NULL, PRIMARY KEY(user_id, question_id));",
+         CREATE TABLE IF NOT EXISTS seen_questions(user_id TEXT NOT NULL, question_id INTEGER NOT NULL, PRIMARY KEY(user_id, question_id));
+         CREATE INDEX IF NOT EXISTS idx_questions_chapter ON questions(chapter_id);
+         CREATE INDEX IF NOT EXISTS idx_questions_subtopic ON questions(subtopic_id);
+         CREATE INDEX IF NOT EXISTS idx_questions_subject ON questions(subject);
+         CREATE INDEX IF NOT EXISTS idx_questions_year ON questions(year);
+         CREATE INDEX IF NOT EXISTS idx_subtopics_chapter ON subtopics(chapter_id);
+         CREATE INDEX IF NOT EXISTS idx_papers_user ON papers(user_id);
+         CREATE INDEX IF NOT EXISTS idx_attempts_paper ON attempts(paper_id);
+         CREATE INDEX IF NOT EXISTS idx_attempts_user ON attempts(user_id);
+         CREATE INDEX IF NOT EXISTS idx_answers_attempt ON answers(attempt_id);",
     )
     .execute(pool)
     .await?;

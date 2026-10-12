@@ -17,6 +17,58 @@ pub fn esc(s: &str) -> String {
     o
 }
 
+/// Render question body HTML stored in the DB. The importer sanitizes at write
+/// time; this re-sanitizes on read so a hand-edited row can never inject a
+/// script. Only the sanitizer's allowlist survives — see
+/// scripts/import_examgoal.py for the matching write-side list.
+pub fn rich(s: &str) -> String {
+    const ALLOWED: &[&str] = &[
+        "br", "p", "sup", "sub", "b", "strong", "i", "em", "u", "ol", "ul",
+        "li", "table", "tbody", "thead", "tr", "th", "td", "span", "h3",
+    ];
+    let mut o = String::with_capacity(s.len());
+    let b = s.as_bytes();
+    let mut i = 0;
+    while i < b.len() {
+        if b[i] != b'<' {
+            // Escape text nodes so a stray "<3" or raw & cannot break markup.
+            match b[i] as char {
+                '&' => o.push_str("&amp;"),
+                '<' => o.push_str("&lt;"),
+                '>' => o.push_str("&gt;"),
+                c => o.push(c),
+            }
+            i += 1;
+            continue;
+        }
+        let Some(end) = s[i..].find('>') else {
+            o.push_str("&lt;");
+            i += 1;
+            continue;
+        };
+        let inner = &s[i + 1..i + end];
+        let inner = inner.trim();
+        let (closing, name) = match inner.strip_prefix('/') {
+            Some(rest) => (true, rest.split_whitespace().next().unwrap_or("")),
+            None => (false, inner.split_whitespace().next().unwrap_or("")),
+        };
+        let name = name.trim_end_matches('/').to_ascii_lowercase();
+        // Reject anything with attributes or a non-allowlisted tag. A trailing
+        // slash (self-closing <br/>) is fine and needs no attribute parsing.
+        let has_attrs = inner.contains(char::is_whitespace) && !inner.ends_with('/');
+        if !has_attrs && ALLOWED.contains(&name.as_str()) {
+            o.push('<');
+            if closing {
+                o.push('/');
+            }
+            o.push_str(&name);
+            o.push('>');
+        }
+        i += end + 1;
+    }
+    o
+}
+
 pub struct SubtopicRow {
     pub id: i64,
     pub name: String,
@@ -40,9 +92,18 @@ fn head(ctx: &Ctx, title: &str) -> String {
     format!(
         r#"<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>{t} · PYQ</title><link rel="stylesheet" href="{b}/static/style.css">
+<title>{t} · WhalePrep</title><link rel="stylesheet" href="{b}/static/style.css">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"></script>
+<script>document.addEventListener("DOMContentLoaded", function() {{
+  if (window.renderMathInElement) renderMathInElement(document.body, {{
+    delimiters: [{{left: "$$", right: "$$", display: true}}, {{left: "\\(", right: "\\)", display: false}}],
+    trust: false, strict: false, throwOnError: false
+  }});
+}});</script>
 </head><body>"#,
         t = esc(title),
         b = ctx.base
@@ -51,7 +112,7 @@ fn head(ctx: &Ctx, title: &str) -> String {
 
 fn nav(ctx: &Ctx, user: Option<&str>) -> String {
     let brand = format!(
-        r#"<header class="topbar"><a class="brand" href="{b}/">PYQ<span>jee main practice</span></a><nav class="nav">"#,
+        r#"<header class="topbar"><a class="brand" href="{b}/">WhalePrep<span>jee main practice</span></a><nav class="nav">"#,
         b = ctx.base
     );
     let links = match user {
@@ -451,7 +512,7 @@ pub fn attempt(ctx: &Ctx, user: &str, attempt_id: &str, questions: &[Question], 
                             id = q.id,
                             letter = letter,
                             checked = checked,
-                            t = esc(&text)
+                            t = rich(&text)
                         )
                     })
                     .collect()
@@ -481,7 +542,7 @@ pub fn attempt(ctx: &Ctx, user: &str, attempt_id: &str, questions: &[Question], 
                 ch = esc(&q.chapter),
                 qt = esc(&q.qtype),
                 revflag = if rev { " · <span class=\"warn-t\">marked</span>" } else { "" },
-                stem = esc(&q.stem),
+                stem = rich(&q.stem),
                 sub2 = esc(&q.subtopic),
                 year = q.year,
                 shift = esc(&q.shift),
@@ -605,7 +666,7 @@ pub fn result(ctx: &Ctx, user: &str, _attempt_id: &str, a: &Analysis, rows: &[Ro
                         let is_ans = r.q.answer.trim().eq_ignore_ascii_case(l);
                         let is_sel = r.selected.trim().eq_ignore_ascii_case(l);
                         let style = if is_ans { "ok-t" } else if is_sel { "bad-t" } else { "dim" };
-                        format!(r#"<span style="margin-right:10px" class="{style}">{l}: {t}{mark}</span>"#, style = style, l = l, t = esc(&r.q.opts[k]), mark = if is_ans { " (correct)" } else if is_sel { " (you)" } else { "" })
+                        format!(r#"<span style="margin-right:10px" class="{style}">{l}: {t}{mark}</span>"#, style = style, l = l, t = rich(&r.q.opts[k]), mark = if is_ans { " (correct)" } else if is_sel { " (you)" } else { "" })
                     })
                     .collect()
             };
@@ -620,7 +681,7 @@ pub fn result(ctx: &Ctx, user: &str, _attempt_id: &str, a: &Analysis, rows: &[Ro
                 cls = cls,
                 state = state,
                 marks = r.marks,
-                stem = esc(&r.q.stem),
+                stem = rich(&r.q.stem),
                 opts = opts,
                 sub2 = esc(&r.q.subtopic),
                 ch = esc(&r.q.chapter),
@@ -628,7 +689,7 @@ pub fn result(ctx: &Ctx, user: &str, _attempt_id: &str, a: &Analysis, rows: &[Ro
                 shift = esc(&r.q.shift),
                 difficulty = esc(&r.q.difficulty),
                 qtime = if r.time_secs > 0 { format!("{}s spent", r.time_secs) } else { "no time recorded".to_string() },
-                sol = esc(&r.q.solution)
+                sol = rich(&r.q.solution)
             )
         })
         .collect();
@@ -784,7 +845,7 @@ pub fn shared(ctx: &Ctx, title: &str, duration: i64, questions: &[Question]) -> 
                 ["A", "B", "C", "D"]
                     .iter()
                     .enumerate()
-                    .map(|(k, l)| format!("<p><b>{l}</b> {}</p>", esc(&q.opts[k])))
+                    .map(|(k, l)| format!("<p><b>{l}</b> {}</p>", rich(&q.opts[k])))
                     .collect()
             };
             format!(
@@ -792,7 +853,7 @@ pub fn shared(ctx: &Ctx, title: &str, duration: i64, questions: &[Question]) -> 
                 n = i + 1,
                 subj = esc(&q.subject),
                 sub2 = esc(&q.subtopic),
-                stem = esc(&q.stem),
+                stem = rich(&q.stem),
                 opts = opts
             )
         })
