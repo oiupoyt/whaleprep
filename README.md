@@ -125,6 +125,24 @@ Recommended floor: **1 vCPU / 512 MB RAM / 5 GB disk**. Comfortable headroom:
 **1 vCPU / 1 GB RAM / 10 GB SSD**. No Postgres, no Redis, no object storage —
 one static binary plus one SQLite file.
 
+## Deploy (Termux + Cloudflare Tunnel)
+
+The live site runs on an ARM tablet via Termux behind a dedicated tunnel:
+
+    # on the host
+    pkg install rust sqlite python git
+    git clone https://git.oiupoyt.space/oiupoyt/whaleprep.git
+    cd whaleprep && cargo build --release
+    ./deploy/termux-start.sh
+    python3 scripts/import_examgoal.py whaleprep.db   # 9,813 real PYQs
+
+    # tunnel (once): cloudflared tunnel create whaleprep, point the CNAME at it
+    cloudflared tunnel --config ~/.cloudflared/whaleprep.yml \
+      run ffc0df8c-0978-4b54-93a1-57c64fa1464c
+
+See [deploy/](deploy/) for the service scripts and tunnel config.
+Live at: https://whaleprep.oiupoyt.space
+
 ## Tests
 
     cargo test

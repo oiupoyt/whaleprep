@@ -1,0 +1,14 @@
+# Dedicated tunnel config for whaleprep.oiupoyt.space.
+# On the Termux host this lives at ~/.cloudflared/whaleprep.yml with the
+# credentials-file path adjusted to that machine's home.
+# Create once: cloudflared tunnel create whaleprep
+# DNS once:    cloudflared tunnel --config whaleprep.yml route dns --overwrite-dns <TUNNEL_ID> whaleprep.oiupoyt.space
+# Run:         cloudflared tunnel --config whaleprep.yml run <TUNNEL_ID>
+tunnel: FFC0DF8C-0978-4B54-93A1-57C64FA1464C
+credentials-file: ~/.cloudflared/ffc0df8c-0978-4b54-93a1-57c64fa1464c.json
+protocol: http2
+
+ingress:
+  - hostname: whaleprep.oiupoyt.space
+    service: http://localhost:8222
+  - service: http_status:404
