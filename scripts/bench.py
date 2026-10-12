@@ -18,6 +18,7 @@ CONC = int(sys.argv[3]) if len(sys.argv) > 3 else 20
 
 jar = http.cookiejar.CookieJar()
 opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar))
+opener.addheaders = [("User-Agent", "Mozilla/5.0 (X11; Linux x86_64) WhalePrep-bench/1.0")]
 
 
 def sign_in():

@@ -1,1 +1,5 @@
 /target
+.env
+whaleprep.db*
+*.pid
+*.log

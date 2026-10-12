@@ -16,6 +16,12 @@ if [ -f "$PID_FILE" ]; then
     fi
 fi
 [ -x ./target/release/whaleprep ] || { echo "missing ./target/release/whaleprep — run: cargo build --release"; exit 1; }
+# Optional secrets: GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET, one per line.
+# Without them the app runs with the name+email form only.
+[ -f ./.env ] && set -a && . ./.env && set +a || true
+if [ -z "${GOOGLE_CLIENT_ID:-}" ]; then
+  echo "note: GOOGLE_CLIENT_ID unset — Google button stays hidden, email form only"
+fi
 echo "Starting WhalePrep on :$PORT (db $DB_FILE)..."
 PYQ_DB="$DB_FILE" PYQ_ADDR="127.0.0.1:$PORT" RUST_LOG=info nohup ./target/release/whaleprep </dev/null >> "$LOG_FILE" 2>&1 &
 NEW_PID=$!

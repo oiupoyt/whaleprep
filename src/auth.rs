@@ -16,6 +16,30 @@ pub struct Ctx {
     pub base: String,
     pub google_client_id: String,
     pub google: Option<Arc<Google>>,
+    /// Landing-page bank counts, refreshed at most once a minute. They only
+    /// change on import, so there is no reason to run five aggregate
+    /// subselects on every homepage hit.
+    pub stats_cache: std::sync::Mutex<(std::time::Instant, (i64, i64, i64, i64, i64))>,
+}
+
+impl Ctx {
+    pub async fn bank_stats(&self) -> (i64, i64, i64, i64, i64) {
+        {
+            let guard = self.stats_cache.lock().unwrap();
+            if guard.0.elapsed() < std::time::Duration::from_secs(60) {
+                return guard.1;
+            }
+        }
+        let fresh: (i64, i64, i64, i64, i64) = sqlx::query_as(
+            "SELECT (SELECT COUNT(*) FROM questions),(SELECT COUNT(DISTINCT subject||'-'||year||'-'||shift) FROM questions),(SELECT COUNT(*) FROM subtopics),(SELECT COUNT(DISTINCT subject) FROM questions),(SELECT COUNT(*) FROM users)",
+        )
+        .fetch_one(&self.pool)
+        .await
+        .unwrap_or((0, 0, 0, 0, 0));
+        *self.stats_cache.lock().unwrap() =
+            (std::time::Instant::now(), fresh);
+        fresh
+    }
 }
 
 impl Ctx {

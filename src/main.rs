@@ -59,7 +59,16 @@ async fn main() -> anyhow::Result<()> {
         tracing::info!("Google sign-in enabled for {}", &client_id[..client_id.len().min(16)]);
         Some(Arc::new(google::Google::new(&client_id, &client_secret)))
     };
-    let ctx = Arc::new(Ctx { pool, base: base.clone(), google_client_id: client_id, google });
+    let ctx = Arc::new(Ctx {
+        pool,
+        base: base.clone(),
+        google_client_id: client_id,
+        google,
+        stats_cache: std::sync::Mutex::new((
+            std::time::Instant::now() - std::time::Duration::from_secs(61),
+            (0, 0, 0, 0, 0),
+        )),
+    });
     let static_dir = format!("{}/static", std::env::current_dir()?.display());
 
     let app = Router::new()
@@ -83,6 +92,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/api/attempt/{attempt}/state", get(attempt_state))
         .route("/api/attempt/{attempt}/submit", post(submit_api))
         .nest_service("/static", get_service(ServeDir::new(static_dir)))
+        .layer(tower_http::compression::CompressionLayer::new())
         .with_state(ctx);
 
     let listener = tokio::net::TcpListener::bind(&addr).await?;
@@ -92,12 +102,7 @@ async fn main() -> anyhow::Result<()> {
 }
 
 async fn home(State(ctx): State<CtxArc>) -> impl IntoResponse {
-    let c: (i64, i64, i64, i64, i64) = sqlx::query_as(
-        "SELECT (SELECT COUNT(*) FROM questions),(SELECT COUNT(DISTINCT subject||'-'||year||'-'||shift) FROM questions),(SELECT COUNT(*) FROM subtopics),(SELECT COUNT(DISTINCT subject) FROM questions),(SELECT COUNT(*) FROM users)",
-    )
-    .fetch_one(&ctx.pool)
-    .await
-    .unwrap_or((0, 0, 0, 0, 0));
+    let c = ctx.bank_stats().await;
     hx(views::landing(&ctx, c.0, c.1, c.2, c.3, c.4, false), StatusCode::OK)
 }
 

@@ -22,6 +22,7 @@ DB = sys.argv[4] if len(sys.argv) > 4 else "/tmp/bench.db"
 def student_session(i):
     jar = http.cookiejar.CookieJar()
     opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar))
+opener.addheaders = [("User-Agent", "Mozilla/5.0 (X11; Linux x86_64) WhalePrep-bench/1.0")]
     body = urllib.parse.urlencode(
         {"name": f"Load{i}", "email": f"load{i}@example.com", "next": "/build"}
     ).encode()

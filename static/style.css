@@ -232,3 +232,9 @@ input[type=text],input[type=email],input[type=number],select{min-height:44px;pad
 /* ===== mistake tagging ===== */
 .mistake-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:10px;padding-top:10px;border-top:1px solid var(--border)}
 .btn.sm{min-height:36px;padding:7px 12px;font-size:.72rem}
+
+/* ===== sign-in ===== */
+.signin-primary{max-width:420px}
+.signin-or{display:flex;align-items:center;gap:12px;max-width:420px;margin:18px 0 4px;color:var(--dim);font-size:.75rem}
+.signin-or::before,.signin-or::after{content:"";flex:1;height:1px;background:var(--border)}
+.signin-or span{padding:0 2px}

@@ -195,48 +195,57 @@ pub type Fallback = Option<(String, String, String)>;
 
 pub fn student(ctx: &Ctx, next: &str, err: Option<&str>, fallback: Fallback) -> String {
     let e = err.map(|m| format!(r#"<p class="bad-t" role="alert">{m}</p>"#)).unwrap_or_default();
-    let (intro, google_block, action) = match (&fallback, ctx.google.is_some()) {
-        (Some(_), true) => (
-            "Sign in with Google and every paper you build, submit and analyse is attached to that account, so a score is still there on the next device.",
-            format!(
-                r#"<div id="google-btn" style="display:flex;justify-content:center;margin:18px 0;min-height:44px"></div>
-<form method="post" action="{b}/student/google" id="google-form" hidden>
-  <input type="hidden" name="credential" value="">
-  <input type="hidden" name="next" value="{next}">
-</form>
-<p class="dim" id="gsi-status" role="status">loading the Google button&hellip;</p>"#,
-                b = ctx.base,
-                next = esc(next)
-            ),
-            "sign in with an email instead",
-        ),
-        (None, true) => (
-            "Google sign-in is available but its button did not get its parameters. Refresh the page, or use the form below.",
-            String::new(),
-            "sign in",
-        ),
-        _ => (
-            "Google sign-in is switched off on this server because no client id was configured. The form below keys your papers to an email so the whole flow still works.",
-            String::new(),
-            "sign in",
-        ),
+    let google_on = ctx.google.is_some() && fallback.is_some();
+    // Students are non-technical: one primary action, plain words, no jargon.
+    // Google first when configured (scores follow the account across devices);
+    // otherwise the name+email form, honestly labeled as this-device-only.
+    let google_block = if google_on {
+        format!(
+            r#"<div class="signin-primary">
+  <div id="google-btn" style="display:flex;justify-content:center;margin:6px 0 4px;min-height:44px"></div>
+  <form method="post" action="{b}/student/google" id="google-form" hidden>
+    <input type="hidden" name="credential" value="">
+    <input type="hidden" name="next" value="{next}">
+  </form>
+  <p class="dim" id="gsi-status" role="status">loading the Google button&hellip;</p>
+</div>"#,
+            b = ctx.base,
+            next = esc(next)
+        )
+    } else {
+        String::new()
+    };
+    let divider = if google_on {
+        "<div class=\"signin-or\" aria-hidden=\"true\"><span>or</span></div>".to_string()
+    } else {
+        String::new()
+    };
+    let email_head = if google_on { "use just a name and email" } else { "sign in" };
+    let email_note = if google_on {
+        "No Google account? Type any name and email. Your papers stay on <b>this browser only</b> — use the same email on another device and the scores won't follow."
+    } else {
+        "Type any name and email to start practising. Your papers stay on <b>this browser for 30 days</b> — use the same email here and everything is still waiting."
     };
     let body = format!(
         r#"<h1>Sign in</h1>
-<p class="meta">{intro}</p>
+<p class="meta">One tap and your scores, mistakes and weak topics are saved.</p>
 {google_block}
-<h2>{action}</h2>
+{divider}
+<h2>{email_head}</h2>
+<p class="meta">{email_note}</p>
 <form method="post" action="{b}/student" style="max-width:420px;margin-top:8px">
   <input type="hidden" name="next" value="{next}">
-  <label for="name">name</label><input id="name" name="name" type="text" autocomplete="name" required>
-  <label for="email">email</label><input id="email" name="email" type="email" autocomplete="email" required>
+  <label for="name">your name</label><input id="name" name="name" type="text" autocomplete="name" placeholder="e.g. Aarav Sharma" required>
+  <label for="email">email</label><input id="email" name="email" type="email" autocomplete="email" placeholder="you@example.com" required>
   {e}
-  <div style="margin-top:14px"><button class="btn primary" type="submit">{action}</button></div>
+  <div style="margin-top:14px"><button class="btn primary block" type="submit">start practising</button></div>
 </form>
+<p class="dim" style="margin-top:14px;max-width:60ch">Lost access on a new phone? Sign in with the same Google account and everything returns. With the email form, scores live in this browser only — there is no password to forget because there is no password.</p>
 {gsi_script}"#,
-        intro = intro,
         google_block = google_block,
-        action = action,
+        divider = divider,
+        email_head = email_head,
+        email_note = email_note,
         b = ctx.base,
         next = esc(next),
         e = e,
