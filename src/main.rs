@@ -79,6 +79,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/history", get(history_page))
         .route("/dashboard", get(dashboard_page))
         .route("/s/{token}", get(shared_paper))
+        .route("/paper/{id}", get(paper_page))
         .route("/api/attempt/{attempt}/state", get(attempt_state))
         .route("/api/attempt/{attempt}/submit", post(submit_api))
         .nest_service("/static", get_service(ServeDir::new(static_dir)))
@@ -575,7 +576,26 @@ async fn dashboard_page(State(ctx): State<CtxArc>, h: HeaderMap) -> axum::respon
     hx(views::dashboard(&ctx, &name, &tests, &weak, &notes, (tests.len() as i32, marks, gained, lost), &mistakes), StatusCode::OK).into_response()
 }
 
-async fn shared_paper(State(ctx): State<CtxArc>, Path(token): Path<String>) -> axum::response::Response {
+/// Owner view of a paper: redirects to the attempt screen so the paper can
+/// be taken. Private — only the owning user may resolve their paper id.
+async fn paper_page(State(ctx): State<CtxArc>, h: HeaderMap, Path(id): Path<String>) -> axum::response::Response {
+    let (uid, _name) = match ctx.require_user(&h).await {
+        Ok(v) => v,
+        Err(r) => return r,
+    };
+    let owned: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM papers WHERE id=? AND user_id=?")
+        .bind(&id)
+        .bind(&uid)
+        .fetch_one(&ctx.pool)
+        .await
+        .unwrap_or(0);
+    if owned == 0 {
+        return hx(views::error(&ctx, 404, ""), StatusCode::NOT_FOUND).into_response();
+    }
+    Redirect::to(&format!("{}/attempt/{id}", ctx.base)).into_response()
+}
+
+async fn shared_paper(State(ctx): State<CtxArc>, h: HeaderMap, Path(token): Path<String>) -> axum::response::Response {
     let row = sqlx::query("SELECT id, title, duration_min FROM papers WHERE share_token=?").bind(&token).fetch_optional(&ctx.pool).await;
     let (id, title, duration) = match row {
         Ok(Some(r)) => {
@@ -588,7 +608,8 @@ async fn shared_paper(State(ctx): State<CtxArc>, Path(token): Path<String>) -> a
         Ok(v) => v,
         Err(_) => return hx(views::error(&ctx, 500, ""), StatusCode::INTERNAL_SERVER_ERROR).into_response(),
     };
-    hx(views::shared(&ctx, &title, duration, &questions), StatusCode::OK).into_response()
+    let signed = auth::user_id(&ctx.pool, &h).await.is_some();
+    hx(views::shared(&ctx, &title, duration, &questions, &id, &token, signed), StatusCode::OK).into_response()
 }
 
 const TERMS: &str = include_str!("../content/terms.html");

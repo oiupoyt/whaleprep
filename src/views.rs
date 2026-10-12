@@ -904,7 +904,7 @@ pub fn dashboard(ctx: &Ctx, user: &str, tests: &[TestRow], weak: &[(Bucket, Stri
     shell(ctx, Some(user), "Dashboard", body)
 }
 
-pub fn shared(ctx: &Ctx, title: &str, duration: i64, questions: &[Question]) -> String {
+pub fn shared(ctx: &Ctx, title: &str, duration: i64, questions: &[Question], paper_id: &str, token: &str, signed: bool) -> String {
     let qs: String = questions
         .iter()
         .enumerate()
@@ -928,12 +928,26 @@ pub fn shared(ctx: &Ctx, title: &str, duration: i64, questions: &[Question]) -> 
             )
         })
         .collect();
+    let cta = if signed {
+        format!(
+            r#"<form method="post" action="{b}/attempt/{id}" style="margin:16px 0"><button class="btn primary block" type="submit">take this paper</button></form>"#,
+            b = ctx.base,
+            id = esc(paper_id)
+        )
+    } else {
+        format!(
+            r#"<p style="margin:16px 0"><a class="btn primary" href="{b}/student?next=/s/{tok}">sign in to take this paper</a></p>"#,
+            b = ctx.base,
+            tok = esc(token)
+        )
+    };
     let body = format!(
-        r#"<h1>{title}</h1><p class="meta">{count} questions · {dur} minutes · no answers or scores on this page.</p><div style="margin-top:16px">{qs}</div>"#,
+        r#"<h1>{title}</h1><p class="meta">{count} questions · {dur} minutes · no answers or scores on this page.</p>{cta}<div style="margin-top:16px">{qs}</div>"#,
         title = esc(title),
         count = questions.len(),
         dur = duration,
-        qs = qs
+        qs = qs,
+        cta = cta
     );
     shell(ctx, None, title, body)
 }
