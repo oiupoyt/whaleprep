@@ -22,7 +22,7 @@ DB = sys.argv[4] if len(sys.argv) > 4 else "/tmp/bench.db"
 def student_session(i):
     jar = http.cookiejar.CookieJar()
     opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar))
-opener.addheaders = [("User-Agent", "Mozilla/5.0 (X11; Linux x86_64) WhalePrep-bench/1.0")]
+    opener.addheaders = [("User-Agent", "Mozilla/5.0 (X11; Linux x86_64) WhalePrep-bench/1.0")]
     body = urllib.parse.urlencode(
         {"name": f"Load{i}", "email": f"load{i}@example.com", "next": "/build"}
     ).encode()
@@ -41,11 +41,13 @@ def run(i):
     r = opener.open(urllib.request.Request(f"{BASE}/attempt/{paper}", data=b"", method="POST"))
     attempt = r.geturl().split("run=")[-1]
 
-    con = sqlite3.connect(f"file:{DB}?mode=ro", uri=True)
-    ids = [x[0] for x in con.execute(
-        "SELECT question_id FROM paper_questions WHERE paper_id=? ORDER BY ord", (paper,)
-    )]
-    con.close()
+    import json as _json
+    # Question ids via the state API so this works against any deployment
+    # (no local DB access needed).
+    state_raw = opener.open(
+        urllib.request.Request(f"{BASE}/api/attempt/{attempt}/state")
+    ).read()
+    ids = [a["question_id"] for a in _json.loads(state_raw)["answers"]]
 
     # Autosave each answer, which is what the exam screen does while a student works.
     saves = []
