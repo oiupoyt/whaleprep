@@ -584,6 +584,7 @@ async fn dashboard_page(State(ctx): State<CtxArc>, h: HeaderMap) -> axum::respon
             mistakes: vec![],
         },
         &tests,
+        &mistakes,
     );
     hx(views::dashboard(&ctx, &name, &tests, &weak, &notes, (tests.len() as i32, marks, gained, lost), &mistakes), StatusCode::OK).into_response()
 }

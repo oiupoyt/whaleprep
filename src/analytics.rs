@@ -205,7 +205,23 @@ pub async fn weakest(pool: &SqlitePool, uid: &str) -> anyhow::Result<Vec<(Bucket
     Ok(v)
 }
 
-pub fn coach_notes(a: &Analysis, history: &[TestRow]) -> Vec<String> {
+/// Human-readable label for a mistake tag key.
+pub fn mistake_label(tag: &str) -> &'static str {
+    match tag {
+        "concept" => "concept gaps",
+        "calculation" => "calculation slips",
+        "misread" => "misread questions",
+        "time" => "time pressure",
+        "guess" => "blind guesses",
+        _ => "other mistakes",
+    }
+}
+
+pub fn coach_notes(
+    a: &Analysis,
+    history: &[TestRow],
+    mistakes: &[(String, i64)],
+) -> Vec<String> {
     let mut notes = Vec::new();
     if a.score == 0 && a.right == 0 {
         notes.push("No question in this paper was answered correctly. Start with the chapters you just revised, one at a time, and use unseen-only so nothing is repeated.".into());
@@ -226,6 +242,42 @@ pub fn coach_notes(a: &Analysis, history: &[TestRow]) -> Vec<String> {
     if let Some(h) = a.by_difficulty.iter().find(|b| b.label == "Hard") {
         if h.total() > 0 && h.pct() < 40 {
             notes.push(format!("Hard questions: {}% correct. Spend a full sitting on hard-only papers before mixing again.", h.pct()));
+        }
+    }
+    // Dominant mistake type: the tagged reason behind most losses dictates
+    // the fix (slow down vs relearn), so name it directly.
+    if let Some((tag, n)) = mistakes.first() {
+        let total: i64 = mistakes.iter().map(|(_, c)| c).sum::<i64>().max(1);
+        if *n * 2 >= total && total >= 2 {
+            let advice = match tag.as_str() {
+                "calculation" => "Slow down on arithmetic and re-check each step before moving on.",
+                "concept" => "Relearn the underlying chapter before attempting more papers.",
+                "misread" => "Underline the numbers and the actual question asked before solving.",
+                "time" => "Attempt easier questions first and return to long ones with leftover time.",
+                "guess" => "Leave unknowns blank: a guess costs a mark, a blank costs nothing.",
+                _ => "Review each tagged question and note the pattern.",
+            };
+            notes.push(format!(
+                "Most of your tagged losses are {} ({} of {}). {}",
+                mistake_label(tag),
+                n,
+                total,
+                advice
+            ));
+        }
+    }
+    // Negative-marking efficiency across history: wrong answers cost a mark
+    // each, so chronic guessing shows up as marks bled away.
+    {
+        let tw: i32 = history.iter().map(|t| t.wrong).sum();
+        let tr: i32 = history.iter().map(|t| t.right).sum();
+        if tw > 0 && tr + tw >= 10 && tw * 2 >= tr + tw {
+            notes.push(format!(
+                "Across {} papers, {} of {} attempted questions were wrong — each cost a mark. Blank the ones you cannot eliminate down to two options.",
+                history.len(),
+                tw,
+                tr + tw
+            ));
         }
     }
     if history.len() >= 2 {
@@ -264,4 +316,72 @@ pub fn fmt_dur(s: i64) -> String {
 
 pub fn fmt_pct(score: i32, max: i32) -> i32 {
     if max == 0 { 0 } else { (score as f64 / max as f64 * 100.0).round() as i32 }
+}
+#[cfg(test)]
+mod coach_tests {
+    use super::*;
+    use chrono::Utc;
+
+    fn row(score: i32, max: i32, right: i32, wrong: i32) -> TestRow {
+        TestRow {
+            attempt_id: "a".into(),
+            started_at: Utc::now(),
+            title: "t".into(),
+            score,
+            max_score: max,
+            used_secs: 60,
+            right,
+            wrong,
+        }
+    }
+
+    fn blank_analysis() -> Analysis {
+        Analysis {
+            score: 0,
+            max_score: 0,
+            used_secs: 0,
+            right: 0,
+            wrong: 0,
+            skipped: 0,
+            by_subject: vec![],
+            by_difficulty: vec![],
+            by_topic: vec![],
+            mistakes: vec![],
+        }
+    }
+
+    #[test]
+    fn dominant_mistake_note_fires() {
+        let a = blank_analysis();
+        let notes = coach_notes(
+            &a,
+            &[],
+            &[("calculation".into(), 3), ("concept".into(), 1)],
+        );
+        assert!(
+            notes.iter().any(|n| n.contains("calculation slips")),
+            "got: {notes:?}"
+        );
+    }
+
+    #[test]
+    fn guessing_note_fires_on_bad_history() {
+        let a = blank_analysis();
+        let h = vec![row(0, 40, 2, 8), row(0, 40, 2, 8)];
+        let notes = coach_notes(&a, &h, &[]);
+        assert!(
+            notes.iter().any(|n| n.contains("Blank the ones")),
+            "got: {notes:?}"
+        );
+    }
+
+    #[test]
+    fn no_mistake_notes_when_clean() {
+        let a = blank_analysis();
+        let notes = coach_notes(&a, &[], &[]);
+        assert!(
+            notes.iter().all(|n| !n.contains("tagged losses") && !n.contains("Blank the ones")),
+            "got: {notes:?}"
+        );
+    }
 }
