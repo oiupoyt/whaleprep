@@ -9,7 +9,7 @@ axum = { version = "0.8.9", features = ["form", "query", "json", "http1", "http2
 base64 = "0.23.1"
 chrono = { version = "0.4.45", features = ["serde"] }
 jsonwebtoken = { version = "11.1.0", features = ["rust_crypto", "use_pem"] }
-reqwest = { version = "0.13.5", features = ["form", "json"] }
+reqwest = { version = "0.13.5", features = ["cookies", "form", "json"] }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.152"
 sha2 = "0.11.0"

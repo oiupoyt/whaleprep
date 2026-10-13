@@ -186,15 +186,17 @@ pub async fn build_paper(pool: &SqlitePool, uid: &str, f: &BuildForm) -> anyhow:
         format!("Mixed paper · {count} questions")
     };
 
+    let mut tx = pool.begin().await?;
     sqlx::query("INSERT INTO papers(id,user_id,title,duration_min,created_at,share_token) VALUES(?,?,?,?,?,?)")
         .bind(&paper).bind(uid).bind(&title).bind(duration)
         .bind(Utc::now().to_rfc3339()).bind(&share)
-        .execute(pool).await?;
+        .execute(&mut *tx).await?;
     for (i, qid) in ids.iter().enumerate() {
         sqlx::query("INSERT INTO paper_questions(paper_id,question_id,ord) VALUES(?,?,?)")
             .bind(&paper).bind(qid).bind(i as i64)
-            .execute(pool).await?;
+            .execute(&mut *tx).await?;
     }
+    tx.commit().await?;
     Ok((paper, share))
 }
 
@@ -246,24 +248,26 @@ pub async fn start_attempt(pool: &SqlitePool, uid: &str, paper: &str) -> anyhow:
         return Ok(id);
     }
     let id = uuid::Uuid::new_v4().to_string();
+    let mut tx = pool.begin().await?;
     sqlx::query("INSERT INTO attempts(id,paper_id,user_id,started_at) VALUES(?,?,?,?)")
         .bind(&id)
         .bind(paper)
         .bind(uid)
         .bind(Utc::now().to_rfc3339())
-        .execute(pool)
+        .execute(&mut *tx)
         .await?;
     let qids: Vec<i64> = sqlx::query_scalar("SELECT question_id FROM paper_questions WHERE paper_id=? ORDER BY ord")
         .bind(paper)
-        .fetch_all(pool)
+        .fetch_all(&mut *tx)
         .await?;
     for qid in &qids {
         sqlx::query("INSERT INTO answers(attempt_id,question_id) VALUES(?,?)")
             .bind(&id)
             .bind(qid)
-            .execute(pool)
+            .execute(&mut *tx)
             .await?;
     }
+    tx.commit().await?;
     Ok(id)
 }
 
@@ -289,6 +293,7 @@ pub async fn save_answers(pool: &SqlitePool, attempt: &str, uid: &str, body: &Sa
     if ok == 0 {
         anyhow::bail!("Attempt not found");
     }
+    let mut tx = pool.begin().await?;
     for a in &body.answers {
         sqlx::query("UPDATE answers SET selected=?, marked_review=?, time_secs=? WHERE attempt_id=? AND question_id=?")
             .bind(&a.selected)
@@ -296,9 +301,10 @@ pub async fn save_answers(pool: &SqlitePool, attempt: &str, uid: &str, body: &Sa
             .bind(a.time_secs.unwrap_or(0).clamp(0, 7200))
             .bind(attempt)
             .bind(a.question_id)
-            .execute(pool)
+            .execute(&mut *tx)
             .await?;
     }
+    tx.commit().await?;
     Ok(())
 }
 
@@ -368,25 +374,31 @@ pub async fn grade(pool: &SqlitePool, attempt: &str) -> anyhow::Result<(Vec<Grad
 
 pub async fn finalize(pool: &SqlitePool, attempt: &str) -> anyhow::Result<(i32, i32, i64)> {
     let (rows, score, max, used) = grade(pool, attempt).await?;
+    let right_count = rows.iter().filter(|r| !r.selected.trim().is_empty() && r.correct).count() as i32;
+    let wrong_count = rows.iter().filter(|r| !r.selected.trim().is_empty() && !r.correct).count() as i32;
     let uid: String = sqlx::query_scalar("SELECT user_id FROM attempts WHERE id=?").bind(attempt).fetch_one(pool).await?;
-    sqlx::query("UPDATE attempts SET submitted_at=?, score=?, max_score=?, used_secs=? WHERE id=?")
+    let mut tx = pool.begin().await?;
+    sqlx::query("UPDATE attempts SET submitted_at=?, score=?, max_score=?, used_secs=?, right_count=?, wrong_count=? WHERE id=?")
         .bind(Utc::now().to_rfc3339())
         .bind(score)
         .bind(max)
         .bind(used)
+        .bind(right_count)
+        .bind(wrong_count)
         .bind(attempt)
-        .execute(pool)
+        .execute(&mut *tx)
         .await?;
+    let now = Utc::now().to_rfc3339();
     for r in &rows {
         if !r.selected.trim().is_empty() {
-            let now = Utc::now().to_rfc3339();
             sqlx::query("INSERT INTO seen_questions(user_id,question_id,seen_at) VALUES(?,?,?) ON CONFLICT(user_id,question_id) DO UPDATE SET seen_at=excluded.seen_at")
                 .bind(&uid)
                 .bind(r.q.id)
                 .bind(&now)
-                .execute(pool)
+                .execute(&mut *tx)
                 .await?;
         }
     }
+    tx.commit().await?;
     Ok((score, max, used))
 }

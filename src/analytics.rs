@@ -125,7 +125,7 @@ pub struct TestRow {
 
 pub async fn history(pool: &SqlitePool, uid: &str) -> anyhow::Result<Vec<TestRow>> {
     let rows = sqlx::query(
-        "SELECT a.id, a.started_at, a.score, a.max_score, a.used_secs, p.title FROM attempts a
+        "SELECT a.id, a.started_at, a.score, a.max_score, a.used_secs, a.right_count, a.wrong_count, p.title FROM attempts a
          JOIN papers p ON p.id=a.paper_id WHERE a.user_id=? AND a.submitted_at IS NOT NULL ORDER BY a.submitted_at DESC",
     )
     .bind(uid)
@@ -134,7 +134,14 @@ pub async fn history(pool: &SqlitePool, uid: &str) -> anyhow::Result<Vec<TestRow
     let mut out = Vec::new();
     for r in &rows {
         let aid: String = r.get("id");
-        let (g, right, wrong) = exam::history_counts(pool, &aid).await?;
+        let mut right: i32 = r.try_get("right_count").unwrap_or(0);
+        let mut wrong: i32 = r.try_get("wrong_count").unwrap_or(0);
+        if right == 0 && wrong == 0 && r.get::<i32, _>("score") != 0 {
+            if let Ok((_, r_cnt, w_cnt)) = exam::history_counts(pool, &aid).await {
+                right = r_cnt;
+                wrong = w_cnt;
+            }
+        }
         out.push(TestRow {
             attempt_id: aid,
             started_at: r.get::<String, _>("started_at").parse().unwrap_or_else(|_| Utc::now()),
@@ -145,7 +152,6 @@ pub async fn history(pool: &SqlitePool, uid: &str) -> anyhow::Result<Vec<TestRow
             right,
             wrong,
         });
-        let _ = g;
     }
     Ok(out)
 }

@@ -45,7 +45,16 @@ async fn main() -> anyhow::Result<()> {
         .max_connections(8)
         .connect_with(opts)
         .await?;
-    sqlx::query("PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;").execute(&pool).await?;
+    for pragma in [
+        "PRAGMA journal_mode = WAL;",
+        "PRAGMA synchronous = NORMAL;",
+        "PRAGMA foreign_keys = ON;",
+        "PRAGMA cache_size = -64000;",
+        "PRAGMA temp_store = MEMORY;",
+        "PRAGMA mmap_size = 268435456;",
+    ] {
+        sqlx::query(pragma).execute(&pool).await?;
+    }
     db::init_db(&pool).await?;
     let client_id = std::env::var("GOOGLE_CLIENT_ID").unwrap_or_default();
     let client_secret = std::env::var("GOOGLE_CLIENT_SECRET").unwrap_or_default();

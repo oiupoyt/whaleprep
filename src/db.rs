@@ -8,7 +8,7 @@ pub async fn init_db(pool: &SqlitePool) -> anyhow::Result<()> {
          CREATE TABLE IF NOT EXISTS questions(id INTEGER PRIMARY KEY, subject TEXT NOT NULL, chapter_id INTEGER NOT NULL, subtopic_id INTEGER NOT NULL, qtype TEXT NOT NULL, stem TEXT NOT NULL, opt_a TEXT, opt_b TEXT, opt_c TEXT, opt_d TEXT, answer TEXT NOT NULL, difficulty TEXT NOT NULL, year INTEGER NOT NULL, shift TEXT NOT NULL, solution TEXT NOT NULL);
          CREATE TABLE IF NOT EXISTS papers(id TEXT PRIMARY KEY, user_id TEXT NOT NULL, title TEXT NOT NULL, duration_min INTEGER NOT NULL, created_at TEXT NOT NULL, share_token TEXT NOT NULL);
          CREATE TABLE IF NOT EXISTS paper_questions(paper_id TEXT NOT NULL, question_id INTEGER NOT NULL, ord INTEGER NOT NULL, PRIMARY KEY(paper_id, question_id));
-         CREATE TABLE IF NOT EXISTS attempts(id TEXT PRIMARY KEY, paper_id TEXT NOT NULL, user_id TEXT NOT NULL, started_at TEXT NOT NULL, submitted_at TEXT, score INTEGER DEFAULT 0, max_score INTEGER DEFAULT 0, used_secs INTEGER DEFAULT 0);
+         CREATE TABLE IF NOT EXISTS attempts(id TEXT PRIMARY KEY, paper_id TEXT NOT NULL, user_id TEXT NOT NULL, started_at TEXT NOT NULL, submitted_at TEXT, score INTEGER DEFAULT 0, max_score INTEGER DEFAULT 0, used_secs INTEGER DEFAULT 0, right_count INTEGER DEFAULT 0, wrong_count INTEGER DEFAULT 0);
          CREATE TABLE IF NOT EXISTS answers(attempt_id TEXT NOT NULL, question_id INTEGER NOT NULL, selected TEXT DEFAULT '', marked_review INTEGER DEFAULT 0, time_secs INTEGER DEFAULT 0, PRIMARY KEY(attempt_id, question_id));
          CREATE TABLE IF NOT EXISTS mistake_tags(attempt_id TEXT NOT NULL, question_id INTEGER NOT NULL, tag TEXT NOT NULL, PRIMARY KEY(attempt_id, question_id, tag));
          CREATE TABLE IF NOT EXISTS sessions(token TEXT PRIMARY KEY, user_id TEXT NOT NULL, created_at TEXT NOT NULL);
@@ -50,6 +50,26 @@ pub async fn init_db(pool: &SqlitePool) -> anyhow::Result<()> {
             .execute(pool)
             .await
             .ok();
+
+        let attempt_cols: Vec<String> = sqlx::query("PRAGMA table_info(attempts)")
+            .fetch_all(pool)
+            .await
+            .unwrap_or_default()
+            .iter()
+            .map(|r| r.get::<String, _>("name"))
+            .collect();
+        if !attempt_cols.iter().any(|c| c == "right_count") {
+            sqlx::query("ALTER TABLE attempts ADD COLUMN right_count INTEGER DEFAULT 0")
+                .execute(pool)
+                .await
+                .ok();
+        }
+        if !attempt_cols.iter().any(|c| c == "wrong_count") {
+            sqlx::query("ALTER TABLE attempts ADD COLUMN wrong_count INTEGER DEFAULT 0")
+                .execute(pool)
+                .await
+                .ok();
+        }
     }
     let (n,): (i64,) = sqlx::query_as("SELECT COUNT(*) FROM questions")
         .fetch_one(pool)
