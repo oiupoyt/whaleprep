@@ -22,7 +22,9 @@ pub async fn init_db(pool: &SqlitePool) -> anyhow::Result<()> {
          CREATE INDEX IF NOT EXISTS idx_papers_user ON papers(user_id);
          CREATE INDEX IF NOT EXISTS idx_attempts_paper ON attempts(paper_id);
          CREATE INDEX IF NOT EXISTS idx_attempts_user ON attempts(user_id);
-         CREATE INDEX IF NOT EXISTS idx_answers_attempt ON answers(attempt_id);",
+         CREATE INDEX IF NOT EXISTS idx_answers_attempt ON answers(attempt_id);
+         CREATE INDEX IF NOT EXISTS idx_papers_token ON papers(share_token);
+         CREATE INDEX IF NOT EXISTS idx_mistakes_attempt ON mistake_tags(attempt_id);",
     )
     .execute(pool)
     .await?;
