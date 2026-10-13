@@ -24,47 +24,50 @@ pub fn esc(s: &str) -> String {
 pub fn rich(s: &str) -> String {
     const ALLOWED: &[&str] = &[
         "br", "p", "sup", "sub", "b", "strong", "i", "em", "u", "ol", "ul",
-        "li", "table", "tbody", "thead", "tr", "th", "td", "span", "h3",
+        "li", "table", "tbody", "thead", "tr", "th", "td", "span",
     ];
     let mut o = String::with_capacity(s.len());
-    let b = s.as_bytes();
-    let mut i = 0;
-    while i < b.len() {
-        if b[i] != b'<' {
-            // Escape text nodes so a stray "<3" or raw & cannot break markup.
-            match b[i] as char {
+    let mut rest = s;
+    while let Some(idx) = rest.find('<') {
+        let (text, after) = rest.split_at(idx);
+        for c in text.chars() {
+            match c {
                 '&' => o.push_str("&amp;"),
-                '<' => o.push_str("&lt;"),
                 '>' => o.push_str("&gt;"),
-                c => o.push(c),
+                other => o.push(other),
             }
-            i += 1;
-            continue;
         }
-        let Some(end) = s[i..].find('>') else {
+        if let Some(end) = after.find('>') {
+            let inner = after[1..end].trim();
+            let (closing, name) = match inner.strip_prefix('/') {
+                Some(r) => (true, r.split_whitespace().next().unwrap_or("")),
+                None => (false, inner.split_whitespace().next().unwrap_or("")),
+            };
+            let name = name.trim_end_matches('/').to_ascii_lowercase();
+            let has_attrs = inner.contains(char::is_whitespace) && !inner.ends_with('/');
+            if !has_attrs && ALLOWED.contains(&name.as_str()) {
+                o.push('<');
+                if closing {
+                    o.push('/');
+                }
+                o.push_str(&name);
+                if !closing && inner.ends_with('/') {
+                    o.push('/');
+                }
+                o.push('>');
+            }
+            rest = &after[end + 1..];
+        } else {
             o.push_str("&lt;");
-            i += 1;
-            continue;
-        };
-        let inner = &s[i + 1..i + end];
-        let inner = inner.trim();
-        let (closing, name) = match inner.strip_prefix('/') {
-            Some(rest) => (true, rest.split_whitespace().next().unwrap_or("")),
-            None => (false, inner.split_whitespace().next().unwrap_or("")),
-        };
-        let name = name.trim_end_matches('/').to_ascii_lowercase();
-        // Reject anything with attributes or a non-allowlisted tag. A trailing
-        // slash (self-closing <br/>) is fine and needs no attribute parsing.
-        let has_attrs = inner.contains(char::is_whitespace) && !inner.ends_with('/');
-        if !has_attrs && ALLOWED.contains(&name.as_str()) {
-            o.push('<');
-            if closing {
-                o.push('/');
-            }
-            o.push_str(&name);
-            o.push('>');
+            rest = &after[1..];
         }
-        i += end + 1;
+    }
+    for c in rest.chars() {
+        match c {
+            '&' => o.push_str("&amp;"),
+            '>' => o.push_str("&gt;"),
+            other => o.push(other),
+        }
     }
     o
 }
@@ -89,7 +92,7 @@ fn head(ctx: &Ctx, title: &str) -> String {
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{t} · WhalePrep</title><link rel="stylesheet" href="{b}/static/style.css">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
 <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"></script>
@@ -340,125 +343,368 @@ pub fn error(ctx: &Ctx, code: u16, detail: &str) -> String {
 pub fn build(ctx: &Ctx, user: &str, blocks: Vec<SubjectBlock>, _form: &BuildForm, available: i64, err: Option<&str>) -> String {
     let mut picker = String::new();
     for sb in &blocks {
-        picker.push_str(&format!(r#"<div class="subject-section"><h3 class="subject-label"><label class="chk all-subj"><input type="checkbox" class="subj-all" data-subj="{s}"><span>{sl}</span></label></h3>"#,
-            s = esc(&sb.subject), sl = esc(&sb.subject)));
+        let _subj_lower = sb.subject.to_lowercase();
+        picker.push_str(&format!(
+            r#"<div class="subject-section" data-subject="{subj}">
+  <div class="subject-header-row">
+    <span class="subject-title-badge">{subj}</span>
+    <button type="button" class="btn-select-all-subject" data-subj="{subj}">Select all {subj}</button>
+  </div>"#,
+            subj = esc(&sb.subject)
+        ));
         for ch in &sb.chapters {
-            // Each chapter has a "select all" plus individual subtopic checkboxes.
+            let sub_count = ch.subtopics.len();
             let subcheck: String = ch.subtopic_ids.iter().zip(ch.subtopics.iter()).map(|(sid, sname)| {
-                format!(r#"<label class="chk sub-chk"><input type="checkbox" class="subtopic" value="{sid}" data-chap="{cid}"><span class="dim">{sn}</span></label>"#,
-                    sid = sid, cid = ch.id, sn = esc(sname))
+                format!(
+                    r#"<label class="subtopic-chip">
+  <input type="checkbox" class="subtopic" value="{sid}" data-chap="{cid}" data-subj="{subj}">
+  <span>{sn}</span>
+</label>"#,
+                    sid = sid, cid = ch.id, subj = esc(&sb.subject), sn = esc(sname)
+                )
             }).collect();
+
             picker.push_str(&format!(
-                r#"<div class="chapter-group">
-  <label class="chk chapter-hd"><input type="checkbox" class="chap" value="{cid}" data-subj="{subj}"><span><b>{cname}</b> <span class="dim">· {count} q</span></span></label>
-  <div class="subtopic-list" id="sl-{cid}">{subcheck}</div>
+                r#"<div class="chapter-card" data-subj="{subj}" data-chap="{cid}">
+  <div class="chapter-card-header">
+    <label class="chapter-select-wrap">
+      <input type="checkbox" class="chap" value="{cid}" data-subj="{subj}" data-count="{count}">
+      <span class="chapter-name">{cname}</span>
+    </label>
+    <div class="chapter-actions">
+      <span class="chapter-q-badge">{count} Qs</span>
+      <button type="button" class="btn-expand-subtopics" data-chap="{cid}" title="Toggle subtopics list">
+        <span>{sub_count} Subtopics</span>
+        <svg class="chevron-icon" viewBox="0 0 24 24" width="16" height="16"><path fill="none" stroke="currentColor" stroke-width="2" d="M6 9l6 6 6-6"/></svg>
+      </button>
+    </div>
+  </div>
+  <div class="subtopics-tray" id="tray-{cid}">
+    <div class="subtopics-tray-head">
+      <span class="dim">Subtopics in {cname}</span>
+      <div style="display:flex;gap:12px">
+        <button type="button" class="btn-sub-link select-all-tray" data-chap="{cid}">Select all</button>
+        <button type="button" class="btn-sub-link clear-tray" data-chap="{cid}">Deselect all</button>
+      </div>
+    </div>
+    <div class="subtopics-grid">{subcheck}</div>
+  </div>
 </div>"#,
-                cid = ch.id, cname = esc(&ch.name), count = ch.count, subj = esc(&sb.subject), subcheck = subcheck
+                cid = ch.id,
+                cname = esc(&ch.name),
+                count = ch.count,
+                sub_count = sub_count,
+                subj = esc(&sb.subject),
+                subcheck = subcheck
             ));
         }
         picker.push_str("</div>");
     }
-    let e = err.map(|m| format!(r#"<p class="bad-t">{m}</p>"#)).unwrap_or_default();
+
+    let e = err.map(|m| format!(r#"<p class="bad-t" role="alert">{m}</p>"#)).unwrap_or_default();
     let body = format!(
-        r#"<h1>Build a paper</h1>
-<p class="meta">{available} questions in the bank. Pick chapters or individual subtopics.</p>
+        r#"<div class="build-header">
+  <h1>Build Practice Paper</h1>
+  <p class="meta">Select specific syllabus units or choose a preset from <b>{available}</b> authentic JEE Main questions.</p>
+  
+  <div class="preset-bar">
+    <span class="preset-label">Quick Presets:</span>
+    <button type="button" class="preset-btn" data-preset="full">⚡ Full Mock (75 Qs · All 3 Subjects)</button>
+    <button type="button" class="preset-btn" data-preset="phy">⚛ Physics Focus</button>
+    <button type="button" class="preset-btn" data-preset="chem">🧪 Chemistry Focus</button>
+    <button type="button" class="preset-btn" data-preset="math">📐 Mathematics Focus</button>
+    <button type="button" class="preset-btn secondary" data-preset="clear">✕ Clear Selection</button>
+  </div>
+</div>
+
+<div class="subject-tabs" role="tablist">
+  <button type="button" class="sub-tab active" data-tab="all">All Subjects <span class="tab-badge">15 Units</span></button>
+  <button type="button" class="sub-tab" data-tab="Physics">Physics <span class="tab-badge">6</span></button>
+  <button type="button" class="sub-tab" data-tab="Chemistry">Chemistry <span class="tab-badge">3</span></button>
+  <button type="button" class="sub-tab" data-tab="Maths">Mathematics <span class="tab-badge">6</span></button>
+</div>
+
 <form method="post" action="{b}/build" id="build-form">
   <input type="hidden" name="chapters" id="chapters" value="">
   <input type="hidden" name="subtopics" id="subtopics" value="">
   <input type="hidden" name="mode" id="mode" value="">
-  <div class="grid2"><div class="picker-col">{picker}</div>
-  <div class="settings-col">
-    <div class="settings-sticky">
-      <h2>paper settings</h2>
-      <label for="count">questions</label>
-      <select id="count" name="count">
-        <option value="9">9 · quick drill</option>
-        <option value="12" selected>12</option>
-        <option value="18">18</option>
-        <option value="25">25</option>
-        <option value="50">50</option>
-        <option value="75">75 · full shift</option>
-      </select>
-      <label class="chk" style="margin-top:12px">
-        <input type="checkbox" id="jee-mode" name="_jee">
-        <span>JEE mode — 60 min per subject<br><span class="dim">ignores the duration field</span></span>
-      </label>
-      <div id="dur-row">
-        <label for="duration" style="margin-top:12px">duration (minutes)</label>
-        <input id="duration" name="duration" type="number" value="24" min="5" max="180">
-      </div>
-      <label class="chk" style="margin-top:12px">
-        <input type="checkbox" name="unseen_only" checked>
-        <span>unseen questions only<br><span class="dim">skips anything you have already answered once</span></span>
-      </label>
-      <p class="dim build-note" id="pick-note" style="margin-top:10px">no topics picked yet</p>
-      {e}
-      <div style="margin-top:14px"><button class="btn primary block" type="submit">create paper</button></div>
+
+  <div class="build-layout">
+    <div class="picker-col">
+      {picker}
     </div>
-  </div></div>
+
+    <div class="settings-col">
+      <div class="settings-sticky">
+        <div class="settings-card">
+          <h2 class="settings-title">Exam Settings</h2>
+
+          <div class="setting-group">
+            <label class="setting-lbl">Questions Count</label>
+            <div class="count-pills">
+              <button type="button" class="count-pill" data-count="9">9</button>
+              <button type="button" class="count-pill active" data-count="15">15</button>
+              <button type="button" class="count-pill" data-count="30">30</button>
+              <button type="button" class="count-pill" data-count="45">45</button>
+              <button type="button" class="count-pill" data-count="75">75</button>
+            </div>
+            <input type="hidden" id="count" name="count" value="15">
+          </div>
+
+          <div class="setting-group">
+            <label class="toggle-card">
+              <input type="checkbox" id="jee-mode" name="_jee">
+              <div class="toggle-card-content">
+                <div class="toggle-card-title">
+                  <b>JEE Main Mode</b>
+                  <span class="badge-mode">Official</span>
+                </div>
+                <p class="dim">Independent 60-min timer per subject, auto-switching.</p>
+              </div>
+            </label>
+          </div>
+
+          <div class="setting-group" id="dur-row">
+            <label class="setting-lbl" for="duration">Custom Timer (Minutes)</label>
+            <input id="duration" name="duration" type="number" value="30" min="5" max="180">
+          </div>
+
+          <div class="setting-group">
+            <label class="toggle-card">
+              <input type="checkbox" name="unseen_only" checked>
+              <div class="toggle-card-content">
+                <b>Unseen Questions Only</b>
+                <p class="dim">Skips previously attempted questions until topics deplete.</p>
+              </div>
+            </label>
+          </div>
+
+          <div class="selection-summary">
+            <div class="summary-stat">
+              <span class="dim">Selected</span>
+              <b id="pick-summary">0 Topics</b>
+            </div>
+            <div class="summary-stat">
+              <span class="dim">Question Pool</span>
+              <b id="pool-count">0 available</b>
+            </div>
+          </div>
+
+          {e}
+
+          <button class="btn-create-paper" id="submit-btn" type="submit" disabled>
+            <span>Start Practice Paper</span>
+            <span class="btn-subtext" id="btn-subtext">Pick topics to start</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
 </form>
+
 <script>
 (() => {{
   const form = document.getElementById('build-form');
   const chapField = document.getElementById('chapters');
   const stField = document.getElementById('subtopics');
   const modeField = document.getElementById('mode');
-  const note = document.getElementById('pick-note');
+  const countField = document.getElementById('count');
   const jeeBox = document.getElementById('jee-mode');
   const durRow = document.getElementById('dur-row');
+  const durInput = document.getElementById('duration');
+  const pickSummary = document.getElementById('pick-summary');
+  const poolCount = document.getElementById('pool-count');
+  const submitBtn = document.getElementById('submit-btn');
+  const btnSubtext = document.getElementById('btn-subtext');
 
-  // JEE mode hides the flat duration field.
-  jeeBox.addEventListener('change', () => {{
-    durRow.hidden = jeeBox.checked;
-    modeField.value = jeeBox.checked ? 'jee' : '';
-  }});
-
-  // Selecting a chapter expands the subtopic list and checks all subtopics.
-  document.querySelectorAll('.chap').forEach(ch => {{
-    ch.addEventListener('change', () => {{
-      const grp = ch.closest('.chapter-group');
-      if (grp) grp.classList.toggle('expanded', ch.checked);
-      document.querySelectorAll(`.subtopic[data-chap="${{ch.value}}"]`).forEach(st => {{
-        st.checked = ch.checked;
+  // 1. Subject Tabs Filter
+  document.querySelectorAll('.sub-tab').forEach(tab => {{
+    tab.addEventListener('click', () => {{
+      document.querySelectorAll('.sub-tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      const target = tab.dataset.tab;
+      document.querySelectorAll('.subject-section').forEach(sec => {{
+        if (target === 'all' || sec.dataset.subject === target) {{
+          sec.style.display = '';
+        }} else {{
+          sec.style.display = 'none';
+        }}
       }});
-      sync();
     }});
   }});
 
-  // Selecting a "select all subjects" box checks all chapters in that subject.
-  document.querySelectorAll('.subj-all').forEach(sa => {{
-    sa.addEventListener('change', () => {{
-      const subj = sa.dataset.subj;
-      document.querySelectorAll(`.chap[data-subj="${{subj}}"]`).forEach(ch => {{
-        ch.checked = sa.checked;
-        document.querySelectorAll(`.subtopic[data-chap="${{ch.value}}"]`).forEach(st => {{ st.checked = sa.checked; }});
-      }});
-      sync();
+  // 2. Expand/Collapse subtopics chevron button
+  document.querySelectorAll('.btn-expand-subtopics').forEach(btn => {{
+    btn.addEventListener('click', (e) => {{
+      e.preventDefault();
+      e.stopPropagation();
+      const card = btn.closest('.chapter-card');
+      card.classList.toggle('expanded');
+      btn.setAttribute('aria-expanded', card.classList.contains('expanded'));
     }});
   }});
 
-  // A subtopic change syncs parent chapter (checked if ANY subtopic checked).
-  document.querySelectorAll('.subtopic').forEach(st => {{
-    st.addEventListener('change', () => {{
-      const chapId = st.dataset.chap;
-      const chap = document.querySelector(`.chap[value="${{chapId}}"]`);
-      if (chap) {{
-        const any = [...document.querySelectorAll(`.subtopic[data-chap="${{chapId}}"]`)].some(s => s.checked);
-        chap.checked = any;
-        chap.indeterminate = any && [...document.querySelectorAll(`.subtopic[data-chap="${{chapId}}"]`)].some(s => !s.checked);
+  // 3. Question Count Pills
+  document.querySelectorAll('.count-pill').forEach(pill => {{
+    pill.addEventListener('click', () => {{
+      document.querySelectorAll('.count-pill').forEach(p => p.classList.remove('active'));
+      pill.classList.add('active');
+      countField.value = pill.dataset.count;
+      // Default duration: 2 mins per question
+      if (!jeeBox.checked) {{
+        durInput.value = Math.max(10, Math.min(180, Number(pill.dataset.count) * 2));
       }}
       sync();
     }});
   }});
 
-  function sync() {{
-    const chapIds = [...document.querySelectorAll('.chap:checked')].map(c => c.value);
-    const stIds   = [...document.querySelectorAll('.subtopic:checked')].map(s => s.value);
-    chapField.value = chapIds.join(',');
-    stField.value   = stIds.join(',');
-    const n = stIds.length || chapIds.length;
-    note.textContent = n ? `${{chapIds.length}} chapter${{chapIds.length!==1?'s':''}} · ${{stIds.length}} subtopics` : 'no topics picked yet';
+  // 4. JEE Mode Toggle
+  jeeBox.addEventListener('change', () => {{
+    durRow.hidden = jeeBox.checked;
+    modeField.value = jeeBox.checked ? 'jee' : '';
+    sync();
+  }});
+
+  // 5. Chapter Checkbox Changes
+  document.querySelectorAll('.chap').forEach(ch => {{
+    ch.addEventListener('change', () => {{
+      const card = ch.closest('.chapter-card');
+      const chapId = ch.value;
+      card.querySelectorAll('.subtopic').forEach(st => {{
+        st.checked = ch.checked;
+      }});
+      ch.indeterminate = false;
+      sync();
+    }});
+  }});
+
+  // 6. Subtopic Checkbox Changes
+  document.querySelectorAll('.subtopic').forEach(st => {{
+    st.addEventListener('change', () => {{
+      const card = st.closest('.chapter-card');
+      const chapBox = card.querySelector('.chap');
+      const allSubs = [...card.querySelectorAll('.subtopic')];
+      const anyChecked = allSubs.some(s => s.checked);
+      const allChecked = allSubs.every(s => s.checked);
+      chapBox.checked = anyChecked;
+      chapBox.indeterminate = anyChecked && !allChecked;
+      sync();
+    }});
+  }});
+
+  // 7. Subtopic Tray Select/Clear Helpers
+  document.querySelectorAll('.select-all-tray').forEach(btn => {{
+    btn.addEventListener('click', () => {{
+      const card = btn.closest('.chapter-card');
+      card.querySelectorAll('.subtopic').forEach(st => st.checked = true);
+      const chapBox = card.querySelector('.chap');
+      chapBox.checked = true;
+      chapBox.indeterminate = false;
+      sync();
+    }});
+  }});
+
+  document.querySelectorAll('.clear-tray').forEach(btn => {{
+    btn.addEventListener('click', () => {{
+      const card = btn.closest('.chapter-card');
+      card.querySelectorAll('.subtopic').forEach(st => st.checked = false);
+      const chapBox = card.querySelector('.chap');
+      chapBox.checked = false;
+      chapBox.indeterminate = false;
+      sync();
+    }});
+  }});
+
+  // 8. Select All Subject Button
+  document.querySelectorAll('.btn-select-all-subject').forEach(btn => {{
+    btn.addEventListener('click', () => {{
+      const subj = btn.dataset.subj;
+      const sec = btn.closest('.subject-section');
+      const allChaps = [...sec.querySelectorAll('.chap')];
+      const areAllSelected = allChaps.every(c => c.checked);
+      const newState = !areAllSelected;
+      sec.querySelectorAll('.chap, .subtopic').forEach(chk => {{
+        chk.checked = newState;
+        chk.indeterminate = false;
+      }});
+      btn.textContent = newState ? `Clear ${{subj}}` : `Select all ${{subj}}`;
+      sync();
+    }});
+  }});
+
+  // 9. Quick Presets
+  document.querySelectorAll('.preset-btn').forEach(btn => {{
+    btn.addEventListener('click', () => {{
+      const preset = btn.dataset.preset;
+      if (preset === 'clear') {{
+        document.querySelectorAll('.chap, .subtopic').forEach(c => {{
+          c.checked = false;
+          c.indeterminate = false;
+        }});
+      }} else if (preset === 'full') {{
+        document.querySelectorAll('.chap, .subtopic').forEach(c => {{
+          c.checked = true;
+          c.indeterminate = false;
+        }});
+        setCountPill('75');
+        jeeBox.checked = true;
+        durRow.hidden = true;
+        modeField.value = 'jee';
+      }} else if (preset === 'phy' || preset === 'chem' || preset === 'math') {{
+        const targetSubj = preset === 'phy' ? 'Physics' : preset === 'chem' ? 'Chemistry' : 'Maths';
+        document.querySelectorAll('.chap, .subtopic').forEach(c => {{
+          const isTarget = c.dataset.subj === targetSubj;
+          c.checked = isTarget;
+          c.indeterminate = false;
+        }});
+        setCountPill('30');
+      }}
+      sync();
+    }});
+  }});
+
+  function setCountPill(num) {{
+    document.querySelectorAll('.count-pill').forEach(p => {{
+      if (p.dataset.count === num) {{
+        p.classList.add('active');
+        countField.value = num;
+      }} else {{
+        p.classList.remove('active');
+      }}
+    }});
   }}
+
+  // 10. Sync state, counter and button
+  function sync() {{
+    const checkedChaps = [...document.querySelectorAll('.chap:checked')];
+    const checkedSubs = [...document.querySelectorAll('.subtopic:checked')];
+    chapField.value = checkedChaps.map(c => c.value).join(',');
+    stField.value = checkedSubs.map(s => s.value).join(',');
+
+    let pool = 0;
+    checkedChaps.forEach(c => {{
+      pool += Number(c.dataset.count || 0);
+    }});
+
+    const nChapters = checkedChaps.length;
+    const nSubs = checkedSubs.length;
+    const qCount = countField.value || 15;
+
+    if (nChapters === 0 && nSubs === 0) {{
+      pickSummary.textContent = '0 Topics';
+      poolCount.textContent = '0 available';
+      submitBtn.disabled = true;
+      btnSubtext.textContent = 'Select topics above to start';
+    }} else {{
+      pickSummary.textContent = `${{nChapters}} Units (${{nSubs}} Subtopics)`;
+      poolCount.textContent = `~${{pool.toLocaleString()}} in pool`;
+      submitBtn.disabled = false;
+      const durationMins = jeeBox.checked ? `${{Math.min(3, Math.max(1, new Set(checkedChaps.map(c => c.dataset.subj)).size)) * 60}} Mins` : `${{durInput.value}} Mins`;
+      btnSubtext.textContent = `${{qCount}} Questions · ${{durationMins}}`;
+    }}
+  }}
+
+  // Initialize
   sync();
 }})();
 </script>"#,
@@ -511,7 +757,7 @@ pub fn attempt(ctx: &Ctx, user: &str, attempt_id: &str, questions: &[Question], 
                         let text = q.opts[k].clone();
                         let checked = if sel.trim().eq_ignore_ascii_case(letter) { " checked" } else { "" };
                         format!(
-                            r#"<label class="opt{cls}"><input type="radio" name="q-{id}" value="{letter}"{checked}><span><b>{letter}</b> &nbsp;{t}</span></label>"#,
+                            r#"<label class="opt{cls}"><input type="radio" name="q-{id}" value="{letter}"{checked}><span class="opt-letter">{letter}</span><span class="opt-text">{t}</span></label>"#,
                             cls = if sel.trim().eq_ignore_ascii_case(letter) { " sel" } else { "" },
                             id = q.id,
                             letter = letter,
@@ -527,7 +773,7 @@ pub fn attempt(ctx: &Ctx, user: &str, attempt_id: &str, questions: &[Question], 
     <span class="dim">question {n} of {total} · {subj}</span>
     <span class="dim">{qt} · +4 / −1{revflag}</span>
   </div>
-  <p class="stem">{stem}</p>
+  <div class="stem">{stem}</div>
   <div class="dim meta-line">{sub2} · {ch} · {year} {shift} · {difficulty}</div>
   {opts}
   <div class="opt-actions">
@@ -713,7 +959,7 @@ pub fn result(ctx: &Ctx, user: &str, _attempt_id: &str, a: &Analysis, rows: &[Ro
             };
             format!(
                 r#"<details class="card" style="margin-bottom:8px"><summary style="cursor:pointer">q{n} · {subj} · <span class="{cls}">{state}</span> · {marks:+} marks</summary>
-  <p style="margin:12px 0 6px;color:#fff">{stem}</p>
+  <div class="stem" style="margin:12px 0 6px">{stem}</div>
   <p style="margin-bottom:8px">{opts}</p>
   <p class="dim" style="margin-bottom:8px">{sub2} · {ch} · {year} {shift} · {difficulty} · {qtime}</p>
   <p style="color:#38bdf8">{sol}</p>{mform}</details>"#,
@@ -924,7 +1170,7 @@ pub fn shared(ctx: &Ctx, title: &str, duration: i64, questions: &[Question], pap
                     .collect()
             };
             format!(
-                r#"<details class="card" style="margin-bottom:8px"><summary style="cursor:pointer">q{n} · {subj} · {sub2}</summary><p style="margin:12px 0 8px;color:#fff">{stem}</p>{opts}</details>"#,
+                r#"<details class="card" style="margin-bottom:8px"><summary style="cursor:pointer">q{n} · {subj} · {sub2}</summary><div class="stem" style="margin:12px 0 8px">{stem}</div>{opts}</details>"#,
                 n = i + 1,
                 subj = esc(&q.subject),
                 sub2 = esc(&q.subtopic),
