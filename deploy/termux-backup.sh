@@ -6,6 +6,9 @@
 cd "$(dirname "$0")/.."
 OUT="./backups/whaleprep-$(date +%F).db"
 mkdir -p ./backups
+# VACUUM INTO refuses to overwrite, so remove today's snapshot first —
+# otherwise re-runs silently keep stale data.
+rm -f "$OUT"
 sqlite3 ./whaleprep.db "VACUUM INTO '$OUT';"
 ls -t ./backups/whaleprep-*.db | tail -n +8 | xargs -r rm -f
 echo "backup -> $OUT ($(du -h "$OUT" | cut -f1))"
