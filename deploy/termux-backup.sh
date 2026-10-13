@@ -3,7 +3,16 @@
 # Usage: ./deploy/termux-backup.sh  (run from repo root; safe while live)
 # Termux has no cron, so run this from Termux:Tasker, a daily alarm via
 # Termux:API, or manually. One line, one snapshot.
-cd "$(dirname "$0")/.."
+# Resolve symlinks first: this script may be invoked as ./backup.sh (a
+# symlink at repo root), in which case plain dirname would escape the repo
+# and sqlite would create an empty DB in the wrong place.
+HERE="$(dirname "$(readlink -f "$0")")"
+if [ "$(basename "$HERE")" = "deploy" ]; then
+  cd "$HERE/.."
+else
+  cd "$HERE"
+fi
+[ -f ./whaleprep.db ] || { echo "no ./whaleprep.db here ($(pwd)) — aborting"; exit 1; }
 OUT="./backups/whaleprep-$(date +%F).db"
 mkdir -p ./backups
 # VACUUM INTO refuses to overwrite, so remove today's snapshot first —
