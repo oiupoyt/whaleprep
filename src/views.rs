@@ -755,6 +755,7 @@ pub fn result(ctx: &Ctx, user: &str, _attempt_id: &str, a: &Analysis, rows: &[Ro
 <p style="margin-top:18px;display:flex;gap:8px;flex-wrap:wrap">
   <a class="btn" href="{b}/history">all papers</a>
   <a class="btn" href="{b}/dashboard">dashboard</a>
+  <button class="btn" type="button" onclick="window.print()">print / PDF</button>
   <a class="btn primary" href="{b}/build">new paper</a>
 </p>"#,
         score = a.score,
@@ -946,7 +947,7 @@ pub fn shared(ctx: &Ctx, title: &str, duration: i64, questions: &[Question], pap
         )
     };
     let body = format!(
-        r#"<h1>{title}</h1><p class="meta">{count} questions · {dur} minutes · no answers or scores on this page.</p>{cta}<div style="margin-top:16px">{qs}</div>"#,
+        r#"<h1>{title}</h1><p class="meta">{count} questions · {dur} minutes · no answers or scores on this page.</p>{cta}<p><button class="btn" type="button" onclick="window.print()">print / PDF</button></p><div style="margin-top:16px">{qs}</div>"#,
         title = esc(title),
         count = questions.len(),
         dur = duration,

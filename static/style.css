@@ -238,3 +238,40 @@ input[type=text],input[type=email],input[type=number],select{min-height:44px;pad
 .signin-or{display:flex;align-items:center;gap:12px;max-width:420px;margin:18px 0 4px;color:var(--dim);font-size:.75rem}
 .signin-or::before,.signin-or::after{content:"";flex:1;height:1px;background:var(--border)}
 .signin-or span{padding:0 2px}
+
+/* ===== print: paper + solutions on paper =====
+   Purpose: students print a paper to solve offline and a key to check.
+   Hide everything interactive (nav, palette, buttons, forms); force light
+   ink-friendly colors since KaTeX/printer output assumes dark-on-light;
+   one question per page break where sensible, never split an option row. */
+@media print {
+  .topbar, .tabbar, footer, .exam-bar, .cbt-side, .opt-actions,
+  .mistake-row, .pal-fab, #pal-toggle, form button, .btn, .subj-timer-bar,
+  .exam-progress, .cbt-count, .legend, script {
+    display: none !important;
+  }
+  body { background: #fff !important; color: #000 !important; padding: 0 !important; }
+  .card, .qpane, details.card {
+    background: #fff !important; color: #000 !important;
+    border: 1px solid #999 !important; box-shadow: none !important;
+    break-inside: avoid;
+  }
+  /* Option rows, checkboxes, inputs and palette tiles carry their own dark
+     surfaces — without this they print as solid black bars. */
+  .opt, .opt.sel, .chk, .chapter-hd, .subj-timer,
+  input[type=text], input[type=email], input[type=number], select, textarea,
+  .pal, .pal.ans, .pal.rev, .pal.skip, .seg, .bar {
+    background: #fff !important; color: #000 !important;
+    border-color: #999 !important; box-shadow: none !important;
+  }
+  input[type=radio], input[type=checkbox] { accent-color: #000 !important; }
+  .qpane { display: block !important; }
+  .qpane[hidden] { display: block !important; }
+  .stem, p, summary, span, div, td, th, li, h1, h2, h3 { color: #000 !important; }
+  .dim, .meta { color: #333 !important; }
+  .ok-t, .warn-t, .bad-t { color: #000 !important; font-weight: bold; }
+  a { color: #000 !important; text-decoration: none !important; }
+  .katex { color: #000 !important; }
+  .table-wrap { overflow: visible !important; }
+  @page { margin: 14mm; }
+}
