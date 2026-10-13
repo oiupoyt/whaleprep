@@ -69,11 +69,6 @@ pub fn rich(s: &str) -> String {
     o
 }
 
-pub struct SubtopicRow {
-    pub id: i64,
-    pub name: String,
-}
-
 pub struct ChapterBlock {
     pub id: i64,
     pub name: String,
