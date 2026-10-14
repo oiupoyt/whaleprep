@@ -110,7 +110,7 @@ fn head(ctx: &Ctx, title: &str) -> String {
 
 fn nav(ctx: &Ctx, user: Option<&str>) -> String {
     let brand = format!(
-        r##"<header class="topbar"><div class="brand-group"><a class="brand" href="{b}/"><svg class="brand-logo" viewBox="0 0 24 24" width="22" height="22"><path fill="#60a5fa" d="M12 2L1 21h22L12 2zm0 4.5l7.5 13H4.5L12 6.5z"/></svg> WhalePrep</a><span class="badge-syll">2025 Syllabus</span></div><nav class="nav">"##,
+        r##"<header class="topbar"><div class="brand-group"><a class="brand" href="{b}/"><svg class="brand-logo" viewBox="0 0 24 24" width="22" height="22"><path fill="#60a5fa" d="M12 2L1 21h22L12 2zm0 4.5l7.5 13H4.5L12 6.5z"/></svg> WhalePrep</a></div><nav class="nav">"##,
         b = ctx.base
     );
     let links = match user {
@@ -397,28 +397,7 @@ pub fn build(ctx: &Ctx, user: &str, blocks: Vec<SubjectBlock>, _form: &BuildForm
     let body = format!(
         r#"<div class="zp-builder-page">
   <h1 class="zp-page-title">Prepare a JEE Main test</h1>
-  <p class="zp-page-subtitle">Build your own paper from the chapters you choose (or the complete syllabus), or take an actual JEE Main paper. {available} authentic PYQs in the bank.</p>
-
-  <!-- Mode Selection Cards (ZenithPrep Style) -->
-  <div class="zp-mode-cards">
-    <div class="zp-mode-card active" id="mode-custom">
-      <b class="zp-mode-title">Build your own paper</b>
-      <span class="zp-mode-desc">Chapters you choose, or the complete syllabus</span>
-    </div>
-    <div class="zp-mode-card" id="mode-pyq">
-      <b class="zp-mode-title">Previous year paper</b>
-      <span class="zp-mode-desc">An actual JEE Main paper: pick the year and shift</span>
-    </div>
-  </div>
-
-  <!-- Complete Syllabus Button -->
-  <div class="zp-syllabus-section">
-    <button type="button" class="zp-btn-syllabus" id="btn-complete-syllabus">
-      <span class="zp-book-icon">📚</span>
-      <span>Complete syllabus</span>
-    </button>
-    <p class="zp-syllabus-desc">Selects every chapter in all three subjects (2025 syllabus). You can still remove any you don't want.</p>
-  </div>
+  <p class="zp-page-subtitle">Build a paper from the chapters you choose. {available} authentic JEE Main PYQs in the bank.</p>
 
   <!-- Subject Filter Pills -->
   <div class="zp-subject-pills-bar">
@@ -457,7 +436,6 @@ pub fn build(ctx: &Ctx, user: &str, blocks: Vec<SubjectBlock>, _form: &BuildForm
     <input type="hidden" name="difficulties" id="difficulties" value="Easy,Medium,Hard">
     <input type="hidden" name="years" id="years" value="2020,2021,2022,2023,2024,2025">
     <input type="hidden" name="mode" id="mode" value="jee">
-    <input type="hidden" name="count" id="count" value="30">
 
     <!-- Chapter Rows Container -->
     <div class="zp-chapters-container">
@@ -471,17 +449,17 @@ pub fn build(ctx: &Ctx, user: &str, blocks: Vec<SubjectBlock>, _form: &BuildForm
         <div class="zp-pill-row" id="diff-row">
           <label class="zp-filter-pill active">
             <input type="checkbox" class="diff-chk" value="Easy" checked>
-            <span class="zp-pill-tick">✔</span>
+            
             <span>Easy</span>
           </label>
           <label class="zp-filter-pill active">
             <input type="checkbox" class="diff-chk" value="Medium" checked>
-            <span class="zp-pill-tick">✔</span>
+            
             <span>Medium</span>
           </label>
           <label class="zp-filter-pill active">
             <input type="checkbox" class="diff-chk" value="Hard" checked>
-            <span class="zp-pill-tick">✔</span>
+            
             <span>Hard</span>
           </label>
         </div>
@@ -490,14 +468,14 @@ pub fn build(ctx: &Ctx, user: &str, blocks: Vec<SubjectBlock>, _form: &BuildForm
       <div class="zp-filter-sec" style="margin-top:20px">
         <span class="zp-filter-heading">YEARS</span>
         <div class="zp-pill-row" id="year-row">
-          <label class="zp-filter-pill active"><input type="checkbox" class="year-chk" value="2020" checked><span class="zp-pill-tick">✔</span><span>2020</span></label>
-          <label class="zp-filter-pill active"><input type="checkbox" class="year-chk" value="2021" checked><span class="zp-pill-tick">✔</span><span>2021</span></label>
-          <label class="zp-filter-pill active"><input type="checkbox" class="year-chk" value="2022" checked><span class="zp-pill-tick">✔</span><span>2022</span></label>
-          <label class="zp-filter-pill active"><input type="checkbox" class="year-chk" value="2023" checked><span class="zp-pill-tick">✔</span><span>2023</span></label>
-          <label class="zp-filter-pill active"><input type="checkbox" class="year-chk" value="2024" checked><span class="zp-pill-tick">✔</span><span>2024</span></label>
-          <label class="zp-filter-pill active"><input type="checkbox" class="year-chk" value="2025" checked><span class="zp-pill-tick">✔</span><span>2025</span></label>
-          <label class="zp-filter-pill"><input type="checkbox" class="year-chk" value="2019"><span class="zp-pill-tick">✔</span><span>2019</span></label>
-          <label class="zp-filter-pill"><input type="checkbox" class="year-chk" value="2018"><span class="zp-pill-tick">✔</span><span>2018</span></label>
+          <label class="zp-filter-pill active"><input type="checkbox" class="year-chk" value="2020" checked><span>2020</span></label>
+          <label class="zp-filter-pill active"><input type="checkbox" class="year-chk" value="2021" checked><span>2021</span></label>
+          <label class="zp-filter-pill active"><input type="checkbox" class="year-chk" value="2022" checked><span>2022</span></label>
+          <label class="zp-filter-pill active"><input type="checkbox" class="year-chk" value="2023" checked><span>2023</span></label>
+          <label class="zp-filter-pill active"><input type="checkbox" class="year-chk" value="2024" checked><span>2024</span></label>
+          <label class="zp-filter-pill active"><input type="checkbox" class="year-chk" value="2025" checked><span>2025</span></label>
+          <label class="zp-filter-pill"><input type="checkbox" class="year-chk" value="2019"><span>2019</span></label>
+          <label class="zp-filter-pill"><input type="checkbox" class="year-chk" value="2018"><span>2018</span></label>
         </div>
       </div>
     </div>
@@ -507,13 +485,7 @@ pub fn build(ctx: &Ctx, user: &str, blocks: Vec<SubjectBlock>, _form: &BuildForm
       <div class="zp-settings-row">
         <div class="zp-setting-item">
           <label class="zp-setting-label">Questions</label>
-          <div class="zp-count-pills">
-            <button type="button" class="zp-cnt-btn" data-count="9">9</button>
-            <button type="button" class="zp-cnt-btn" data-count="15">15</button>
-            <button type="button" class="zp-cnt-btn active" data-count="30">30</button>
-            <button type="button" class="zp-cnt-btn" data-count="45">45</button>
-            <button type="button" class="zp-cnt-btn" data-count="75">75</button>
-          </div>
+          <input type="number" id="count-input" name="count" value="30" min="5" max="75" style="width:110px">
         </div>
 
         <div class="zp-setting-item">
@@ -557,7 +529,7 @@ pub fn build(ctx: &Ctx, user: &str, blocks: Vec<SubjectBlock>, _form: &BuildForm
   const diffField = document.getElementById('difficulties');
   const yearField = document.getElementById('years');
   const modeField = document.getElementById('mode');
-  const countField = document.getElementById('count');
+  const countField = document.getElementById('count-input');
   const jeeBox = document.getElementById('jee-mode');
   const durBox = document.getElementById('dur-box');
   const durInput = document.getElementById('duration');
@@ -642,16 +614,6 @@ pub fn build(ctx: &Ctx, user: &str, blocks: Vec<SubjectBlock>, _form: &BuildForm
     sync();
   }});
 
-  // 5. Complete Syllabus Button
-  document.getElementById('btn-complete-syllabus').addEventListener('click', () => {{
-    document.querySelectorAll('.chap, .subtopic').forEach(c => c.checked = true);
-    setCount('75');
-    jeeBox.checked = true;
-    modeField.value = 'jee';
-    durBox.hidden = true;
-    sync();
-  }});
-
   // 6. Subtopic Tray Select/Clear
   document.querySelectorAll('.select-all-tray').forEach(btn => {{
     btn.addEventListener('click', () => {{
@@ -707,20 +669,14 @@ pub fn build(ctx: &Ctx, user: &str, blocks: Vec<SubjectBlock>, _form: &BuildForm
     }});
   }});
 
-  // 9. Question Count Pills
-  document.querySelectorAll('.zp-cnt-btn').forEach(btn => {{
-    btn.addEventListener('click', () => {{
-      setCount(btn.dataset.count);
-      sync();
-    }});
-  }});
-
-  function setCount(n) {{
-    document.querySelectorAll('.zp-cnt-btn').forEach(b => {{
-      b.classList.toggle('active', b.dataset.count === n);
-    }});
+  // 9. Question count input
+  countField.addEventListener('change', () => {{
+    let n = parseInt(countField.value, 10);
+    if (isNaN(n) || n < 5) n = 5;
+    if (n > 75) n = 75;
     countField.value = n;
-  }}
+    sync();
+  }});
 
   // 10. JEE Mode
   jeeBox.addEventListener('change', () => {{

@@ -124,13 +124,23 @@ def fix_delims(text: str) -> str:
 
 
 def fix_single_dollar(text: str) -> str:
-    """A lone $ on its own line is an empty fragment left where an
-    image-equation was stripped upstream — drop those lines."""
+    """Strip stray $ left after delimiter pairing: a lone $ before \\( or
+    before $$, and any orphan single $ in text segments between display
+    pairs. Everything inside $$..$$ pairs is preserved."""
     if not text or "$" not in text:
         return text
-    lines = text.split("\n")
-    cleaned = [ln for ln in lines if ln.strip().strip("$").strip() != "" or "$" not in ln]
-    return "\n".join(cleaned)
+    # "$ $$" -> "$$" ; "$ \\(" -> "\\(" (junk dollar stuck to real math)
+    text = re.sub(r"\$(\s*\$\$)", r"\1", text)
+    text = re.sub(r"\$(\s*\\\()", r"\1", text)
+    # Drop any remaining single $ in text segments; keep display pairs.
+    parts = text.split("$$")
+    out = []
+    for i, part in enumerate(parts):
+        if i % 2 == 1:
+            out.append("$$" + part + "$$")
+        else:
+            out.append(part.replace("$", ""))
+    return "".join(out)
 
 
 def fix_tex_isms(text: str) -> str:

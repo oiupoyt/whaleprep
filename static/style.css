@@ -2204,3 +2204,15 @@ button.pal-fab {
     width: 100%;
   }
 }
+
+/* Selection clarity: a checked chapter row highlights so deselect is obvious. */
+.zp-chapter-item:has(.chap:checked) .zp-chapter-row {
+  background: rgba(37, 99, 235, 0.12);
+  border-left: 3px solid #3b82f6;
+}
+.zp-chapter-item:has(.chap:checked) .zp-chapter-title {
+  color: #60a5fa;
+}
+.zp-subtopic-row:has(input:checked) .zp-subtopic-title {
+  color: #60a5fa;
+}
