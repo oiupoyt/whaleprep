@@ -33,17 +33,21 @@ NTA publishes image-rendered PDFs with no machine-readable question text
 
 ## Schema mapping
 
-| pickle field | our column |
-|---|---|
-| `chapterGroup` (11 groups) | `chapters.name` |
-| `chapter` (91 slugs) | `subtopics.name` |
-| `topic` (472 slugs) | folded into subtopic name when distinct |
-| `correct_options: ["X"]` | `answer` |
-| `question.en.content` (HTML+`$$`) | `stem` (sanitized) |
-| `options[].content` | `opt_a..opt_d` (sanitized) |
-| `explanation` | `solution` (sanitized) |
-| `paperTitle` Morning/Evening | `shift` S1/S2 (examDate hour as fallback) |
-| `difficulty` easy/medium/hard | `Easy`/`Medium`/`Hard` |
+The bank is organized into the official NTA JEE Main syllabus units
+(2026 Paper 1 B.E./B.Tech):
+
+- Physics: 20 units (Units and Measurements through Electronic Devices)
+- Chemistry: 21 units (Some Basic Concepts through Practical Chemistry)
+- Maths: 14 units (Sets, Relations and Functions through Trigonometry)
+
+`scripts/reorg_nta_units.py` maps upstream subtopics into these units by
+keyword matching; stragglers are placed manually (documented in the script).
+
+The 24 hand-written demo questions that previously shipped inside the seed
+have been removed from the live bank: they were trivial one-liners that
+diluted difficulty. A fresh install still seeds them so the app is not
+empty before import (see src/db.rs), but they are labeled in the seed code
+as demo content.
 
 ## Sanitizer contract (both sides match)
 
