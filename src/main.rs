@@ -306,7 +306,16 @@ async fn build_page(State(ctx): State<CtxArc>, h: HeaderMap) -> axum::response::
     };
     let blocks = load_chapter_blocks(&ctx.pool).await;
     let available: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM questions").fetch_one(&ctx.pool).await.unwrap_or(0);
-    let form = BuildForm { chapters: String::new(), subtopics: String::new(), count: Some(12), duration: Some(24), unseen_only: Some("on".into()), mode: String::new() };
+    let form = BuildForm {
+        chapters: String::new(),
+        subtopics: String::new(),
+        difficulties: String::new(),
+        years: String::new(),
+        count: Some(15),
+        duration: Some(30),
+        unseen_only: Some("on".into()),
+        mode: String::new(),
+    };
     hx(views::build(&ctx, &name, blocks, &form, available, None), StatusCode::OK).into_response()
 }
 

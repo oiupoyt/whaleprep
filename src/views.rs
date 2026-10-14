@@ -110,28 +110,27 @@ fn head(ctx: &Ctx, title: &str) -> String {
 
 fn nav(ctx: &Ctx, user: Option<&str>) -> String {
     let brand = format!(
-        r#"<header class="topbar"><a class="brand" href="{b}/">WhalePrep<span>jee main practice</span></a><nav class="nav">"#,
+        r##"<header class="topbar"><div class="brand-group"><a class="brand" href="{b}/"><svg class="brand-logo" viewBox="0 0 24 24" width="22" height="22"><path fill="#60a5fa" d="M12 2L1 21h22L12 2zm0 4.5l7.5 13H4.5L12 6.5z"/></svg> WhalePrep</a><span class="badge-syll">2025 Syllabus</span></div><nav class="nav">"##,
         b = ctx.base
     );
     let links = match user {
-        Some(_) => format!(
-            r#"<a class="hidem" href="{b}/build">build</a><a class="hidem" href="{b}/dashboard">dashboard</a><a class="hidem" href="{b}/history">history</a><a class="btn" href="{b}/logout">sign out</a>"#,
-            b = ctx.base
+        Some(u) => format!(
+            r#"<a class="hidem" href="{b}/build">New paper</a><a class="hidem" href="{b}/history">My papers</a><a class="hidem" href="{b}/dashboard">Dashboard</a><span class="user-greeting">{name}</span><a class="btn-logout" href="{b}/logout">Log out</a>"#,
+            b = ctx.base,
+            name = esc(u)
         ),
         None => format!(
-            r#"<a class="hidem" href="{b}/terms">terms</a><a class="hidem" href="{b}/privacy">privacy</a><a class="btn primary" href="{b}/build">start a paper</a>"#,
+            r#"<a class="hidem" href="{b}/build">New paper</a><a class="hidem" href="{b}/terms">Terms</a><a class="btn primary" href="{b}/student">Sign in</a>"#,
             b = ctx.base
         ),
     };
-    // Below 700px the row of links has nowhere to go, so the primary destinations
-    // move to a bottom bar rather than disappearing behind a hidden class.
     let tabbar = match user {
         Some(_) => format!(
-            r#"<nav class="tabbar" aria-label="primary"><a href="{b}/build">build</a><a href="{b}/history">history</a><a href="{b}/dashboard">dashboard</a><a href="{b}/logout">sign out</a></nav>"#,
+            r#"<nav class="tabbar" aria-label="primary"><a href="{b}/build">New paper</a><a href="{b}/history">My papers</a><a href="{b}/dashboard">Dashboard</a><a href="{b}/logout">Log out</a></nav>"#,
             b = ctx.base
         ),
         None => format!(
-            r#"<nav class="tabbar" aria-label="primary"><a href="{b}/">home</a><a href="{b}/build">start a paper</a><a href="{b}/terms">terms</a></nav>"#,
+            r#"<nav class="tabbar" aria-label="primary"><a href="{b}/">Home</a><a href="{b}/build">New paper</a><a href="{b}/student">Sign in</a></nav>"#,
             b = ctx.base
         ),
     };
@@ -343,368 +342,436 @@ pub fn error(ctx: &Ctx, code: u16, detail: &str) -> String {
 pub fn build(ctx: &Ctx, user: &str, blocks: Vec<SubjectBlock>, _form: &BuildForm, available: i64, err: Option<&str>) -> String {
     let mut picker = String::new();
     for sb in &blocks {
-        let _subj_lower = sb.subject.to_lowercase();
+        let subj = &sb.subject;
         picker.push_str(&format!(
-            r#"<div class="subject-section" data-subject="{subj}">
-  <div class="subject-header-row">
-    <span class="subject-title-badge">{subj}</span>
-    <button type="button" class="btn-select-all-subject" data-subj="{subj}">Select all {subj}</button>
-  </div>"#,
-            subj = esc(&sb.subject)
+            r#"<div class="zp-subject-group" data-subject="{subj}">"#,
+            subj = esc(subj)
         ));
         for ch in &sb.chapters {
             let sub_count = ch.subtopics.len();
             let subcheck: String = ch.subtopic_ids.iter().zip(ch.subtopics.iter()).map(|(sid, sname)| {
                 format!(
-                    r#"<label class="subtopic-chip">
+                    r#"<label class="zp-subtopic-row">
   <input type="checkbox" class="subtopic" value="{sid}" data-chap="{cid}" data-subj="{subj}">
-  <span>{sn}</span>
+  <span class="zp-subtopic-title">{sn}</span>
 </label>"#,
-                    sid = sid, cid = ch.id, subj = esc(&sb.subject), sn = esc(sname)
+                    sid = sid, cid = ch.id, subj = esc(subj), sn = esc(sname)
                 )
             }).collect();
 
             picker.push_str(&format!(
-                r#"<div class="chapter-card" data-subj="{subj}" data-chap="{cid}">
-  <div class="chapter-card-header">
-    <label class="chapter-select-wrap">
+                r#"<div class="zp-chapter-item" data-subj="{subj}" data-name="{cname_lower}">
+  <div class="zp-chapter-row">
+    <label class="zp-chk-wrap">
       <input type="checkbox" class="chap" value="{cid}" data-subj="{subj}" data-count="{count}">
-      <span class="chapter-name">{cname}</span>
+      <span class="zp-chapter-title">{cname}</span>
     </label>
-    <div class="chapter-actions">
-      <span class="chapter-q-badge">{count} Qs</span>
-      <button type="button" class="btn-expand-subtopics" data-chap="{cid}" title="Toggle subtopics list">
-        <span>{sub_count} Subtopics</span>
-        <svg class="chevron-icon" viewBox="0 0 24 24" width="16" height="16"><path fill="none" stroke="currentColor" stroke-width="2" d="M6 9l6 6 6-6"/></svg>
-      </button>
-    </div>
+    <button type="button" class="zp-expand-btn" data-chap="{cid}" title="Toggle subtopics ({sub_count})">
+      <svg class="zp-caret-icon" viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M8 5v14l11-7z"/></svg>
+    </button>
   </div>
-  <div class="subtopics-tray" id="tray-{cid}">
-    <div class="subtopics-tray-head">
-      <span class="dim">Subtopics in {cname}</span>
+  <div class="zp-subtopics-tray" id="tray-{cid}">
+    <div class="zp-subtopics-tray-head">
+      <span class="dim">{sub_count} subtopics in {cname}</span>
       <div style="display:flex;gap:12px">
-        <button type="button" class="btn-sub-link select-all-tray" data-chap="{cid}">Select all</button>
-        <button type="button" class="btn-sub-link clear-tray" data-chap="{cid}">Deselect all</button>
+        <button type="button" class="zp-link-btn select-all-tray" data-chap="{cid}">Select all</button>
+        <button type="button" class="zp-link-btn clear-tray" data-chap="{cid}">Clear</button>
       </div>
     </div>
-    <div class="subtopics-grid">{subcheck}</div>
+    <div class="zp-subtopics-list">{subcheck}</div>
   </div>
 </div>"#,
                 cid = ch.id,
                 cname = esc(&ch.name),
+                cname_lower = esc(&ch.name.to_lowercase()),
                 count = ch.count,
                 sub_count = sub_count,
-                subj = esc(&sb.subject),
+                subj = esc(subj),
                 subcheck = subcheck
             ));
         }
         picker.push_str("</div>");
     }
 
-    let e = err.map(|m| format!(r#"<p class="bad-t" role="alert">{m}</p>"#)).unwrap_or_default();
+    let e = err.map(|m| format!(r#"<p class="bad-t" role="alert" style="margin:12px 0">{m}</p>"#)).unwrap_or_default();
     let body = format!(
-        r#"<div class="build-header">
-  <h1>Build Practice Paper</h1>
-  <p class="meta">Select specific syllabus units or choose a preset from <b>{available}</b> authentic JEE Main questions.</p>
-  
-  <div class="preset-bar">
-    <span class="preset-label">Quick Presets:</span>
-    <button type="button" class="preset-btn" data-preset="full">⚡ Full Mock (75 Qs · All 3 Subjects)</button>
-    <button type="button" class="preset-btn" data-preset="phy">⚛ Physics Focus</button>
-    <button type="button" class="preset-btn" data-preset="chem">🧪 Chemistry Focus</button>
-    <button type="button" class="preset-btn" data-preset="math">📐 Mathematics Focus</button>
-    <button type="button" class="preset-btn secondary" data-preset="clear">✕ Clear Selection</button>
+        r#"<div class="zp-builder-page">
+  <h1 class="zp-page-title">Prepare a JEE Main test</h1>
+  <p class="zp-page-subtitle">Build your own paper from the chapters you choose (or the complete syllabus), or take an actual JEE Main paper. {available} authentic PYQs in the bank.</p>
+
+  <!-- Mode Selection Cards (ZenithPrep Style) -->
+  <div class="zp-mode-cards">
+    <div class="zp-mode-card active" id="mode-custom">
+      <b class="zp-mode-title">Build your own paper</b>
+      <span class="zp-mode-desc">Chapters you choose, or the complete syllabus</span>
+    </div>
+    <div class="zp-mode-card" id="mode-pyq">
+      <b class="zp-mode-title">Previous year paper</b>
+      <span class="zp-mode-desc">An actual JEE Main paper: pick the year and shift</span>
+    </div>
   </div>
-</div>
 
-<div class="subject-tabs" role="tablist">
-  <button type="button" class="sub-tab active" data-tab="all">All Subjects <span class="tab-badge">15 Units</span></button>
-  <button type="button" class="sub-tab" data-tab="Physics">Physics <span class="tab-badge">6</span></button>
-  <button type="button" class="sub-tab" data-tab="Chemistry">Chemistry <span class="tab-badge">3</span></button>
-  <button type="button" class="sub-tab" data-tab="Maths">Mathematics <span class="tab-badge">6</span></button>
-</div>
+  <!-- Complete Syllabus Button -->
+  <div class="zp-syllabus-section">
+    <button type="button" class="zp-btn-syllabus" id="btn-complete-syllabus">
+      <span class="zp-book-icon">📚</span>
+      <span>Complete syllabus</span>
+    </button>
+    <p class="zp-syllabus-desc">Selects every chapter in all three subjects (2025 syllabus). You can still remove any you don't want.</p>
+  </div>
 
-<form method="post" action="{b}/build" id="build-form">
-  <input type="hidden" name="chapters" id="chapters" value="">
-  <input type="hidden" name="subtopics" id="subtopics" value="">
-  <input type="hidden" name="mode" id="mode" value="">
+  <!-- Subject Filter Pills -->
+  <div class="zp-subject-pills-bar">
+    <button type="button" class="zp-subj-pill active" data-subj="Maths">
+      <span class="zp-dot dot-math"></span>
+      <span class="zp-subj-name">Mathematics</span>
+      <span class="zp-subj-badge" id="badge-math">0</span>
+    </button>
+    <button type="button" class="zp-subj-pill" data-subj="Physics">
+      <span class="zp-dot dot-phy"></span>
+      <span class="zp-subj-name">Physics</span>
+      <span class="zp-subj-badge" id="badge-phy">0</span>
+    </button>
+    <button type="button" class="zp-subj-pill" data-subj="Chemistry">
+      <span class="zp-dot dot-chem"></span>
+      <span class="zp-subj-name">Chemistry</span>
+      <span class="zp-subj-badge" id="badge-chem">0</span>
+    </button>
+  </div>
 
-  <div class="build-layout">
-    <div class="picker-col">
+  <!-- Search and Actions Bar -->
+  <div class="zp-search-row">
+    <div class="zp-search-input-wrap">
+      <svg class="zp-search-icon" viewBox="0 0 24 24" width="16" height="16"><path fill="none" stroke="currentColor" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+      <input type="text" id="zp-search-input" placeholder="Search chapters or subtopics." autocomplete="off">
+    </div>
+    <div class="zp-search-actions">
+      <button type="button" class="zp-btn-action" id="btn-select-all">Select all</button>
+      <button type="button" class="zp-btn-action" id="btn-clear-all">Clear</button>
+    </div>
+  </div>
+
+  <form method="post" action="{b}/build" id="build-form">
+    <input type="hidden" name="chapters" id="chapters" value="">
+    <input type="hidden" name="subtopics" id="subtopics" value="">
+    <input type="hidden" name="difficulties" id="difficulties" value="Easy,Medium,Hard">
+    <input type="hidden" name="years" id="years" value="2020,2021,2022,2023,2024,2025">
+    <input type="hidden" name="mode" id="mode" value="jee">
+    <input type="hidden" name="count" id="count" value="30">
+
+    <!-- Chapter Rows Container -->
+    <div class="zp-chapters-container">
       {picker}
     </div>
 
-    <div class="settings-col">
-      <div class="settings-sticky">
-        <div class="settings-card">
-          <h2 class="settings-title">Exam Settings</h2>
+    <!-- Bottom Filter Box (DIFFICULTY & YEARS) -->
+    <div class="zp-filter-box">
+      <div class="zp-filter-sec">
+        <span class="zp-filter-heading">DIFFICULTY</span>
+        <div class="zp-pill-row" id="diff-row">
+          <label class="zp-filter-pill active">
+            <input type="checkbox" class="diff-chk" value="Easy" checked>
+            <span class="zp-pill-tick">✔</span>
+            <span>Easy</span>
+          </label>
+          <label class="zp-filter-pill active">
+            <input type="checkbox" class="diff-chk" value="Medium" checked>
+            <span class="zp-pill-tick">✔</span>
+            <span>Medium</span>
+          </label>
+          <label class="zp-filter-pill active">
+            <input type="checkbox" class="diff-chk" value="Hard" checked>
+            <span class="zp-pill-tick">✔</span>
+            <span>Hard</span>
+          </label>
+        </div>
+      </div>
 
-          <div class="setting-group">
-            <label class="setting-lbl">Questions Count</label>
-            <div class="count-pills">
-              <button type="button" class="count-pill" data-count="9">9</button>
-              <button type="button" class="count-pill active" data-count="15">15</button>
-              <button type="button" class="count-pill" data-count="30">30</button>
-              <button type="button" class="count-pill" data-count="45">45</button>
-              <button type="button" class="count-pill" data-count="75">75</button>
-            </div>
-            <input type="hidden" id="count" name="count" value="15">
-          </div>
-
-          <div class="setting-group">
-            <label class="toggle-card">
-              <input type="checkbox" id="jee-mode" name="_jee">
-              <div class="toggle-card-content">
-                <div class="toggle-card-title">
-                  <b>JEE Main Mode</b>
-                  <span class="badge-mode">Official</span>
-                </div>
-                <p class="dim">Independent 60-min timer per subject, auto-switching.</p>
-              </div>
-            </label>
-          </div>
-
-          <div class="setting-group" id="dur-row">
-            <label class="setting-lbl" for="duration">Custom Timer (Minutes)</label>
-            <input id="duration" name="duration" type="number" value="30" min="5" max="180">
-          </div>
-
-          <div class="setting-group">
-            <label class="toggle-card">
-              <input type="checkbox" name="unseen_only" checked>
-              <div class="toggle-card-content">
-                <b>Unseen Questions Only</b>
-                <p class="dim">Skips previously attempted questions until topics deplete.</p>
-              </div>
-            </label>
-          </div>
-
-          <div class="selection-summary">
-            <div class="summary-stat">
-              <span class="dim">Selected</span>
-              <b id="pick-summary">0 Topics</b>
-            </div>
-            <div class="summary-stat">
-              <span class="dim">Question Pool</span>
-              <b id="pool-count">0 available</b>
-            </div>
-          </div>
-
-          {e}
-
-          <button class="btn-create-paper" id="submit-btn" type="submit" disabled>
-            <span>Start Practice Paper</span>
-            <span class="btn-subtext" id="btn-subtext">Pick topics to start</span>
-          </button>
+      <div class="zp-filter-sec" style="margin-top:20px">
+        <span class="zp-filter-heading">YEARS</span>
+        <div class="zp-pill-row" id="year-row">
+          <label class="zp-filter-pill active"><input type="checkbox" class="year-chk" value="2020" checked><span class="zp-pill-tick">✔</span><span>2020</span></label>
+          <label class="zp-filter-pill active"><input type="checkbox" class="year-chk" value="2021" checked><span class="zp-pill-tick">✔</span><span>2021</span></label>
+          <label class="zp-filter-pill active"><input type="checkbox" class="year-chk" value="2022" checked><span class="zp-pill-tick">✔</span><span>2022</span></label>
+          <label class="zp-filter-pill active"><input type="checkbox" class="year-chk" value="2023" checked><span class="zp-pill-tick">✔</span><span>2023</span></label>
+          <label class="zp-filter-pill active"><input type="checkbox" class="year-chk" value="2024" checked><span class="zp-pill-tick">✔</span><span>2024</span></label>
+          <label class="zp-filter-pill active"><input type="checkbox" class="year-chk" value="2025" checked><span class="zp-pill-tick">✔</span><span>2025</span></label>
+          <label class="zp-filter-pill"><input type="checkbox" class="year-chk" value="2019"><span class="zp-pill-tick">✔</span><span>2019</span></label>
+          <label class="zp-filter-pill"><input type="checkbox" class="year-chk" value="2018"><span class="zp-pill-tick">✔</span><span>2018</span></label>
         </div>
       </div>
     </div>
-  </div>
-</form>
+
+    <!-- Paper Settings & Start Bar -->
+    <div class="zp-settings-bar">
+      <div class="zp-settings-row">
+        <div class="zp-setting-item">
+          <label class="zp-setting-label">Questions</label>
+          <div class="zp-count-pills">
+            <button type="button" class="zp-cnt-btn" data-count="9">9</button>
+            <button type="button" class="zp-cnt-btn" data-count="15">15</button>
+            <button type="button" class="zp-cnt-btn active" data-count="30">30</button>
+            <button type="button" class="zp-cnt-btn" data-count="45">45</button>
+            <button type="button" class="zp-cnt-btn" data-count="75">75</button>
+          </div>
+        </div>
+
+        <div class="zp-setting-item">
+          <label class="zp-toggle-label">
+            <input type="checkbox" id="jee-mode" checked>
+            <span>JEE Main 60-min timer per subject</span>
+          </label>
+          <label class="zp-toggle-label" style="margin-top:6px">
+            <input type="checkbox" name="unseen_only" checked>
+            <span>Unseen questions only</span>
+          </label>
+        </div>
+
+        <div class="zp-setting-item" id="dur-box" hidden>
+          <label class="zp-setting-label" for="duration">Duration (Minutes)</label>
+          <input type="number" id="duration" name="duration" value="60" min="5" max="180">
+        </div>
+      </div>
+
+      {e}
+
+      <div class="zp-submit-row">
+        <div class="zp-summary-text" id="zp-summary">
+          <b>0 chapters selected</b>
+          <span class="dim" id="zp-pool-estimate">Pick chapters above</span>
+        </div>
+        <button type="submit" class="zp-btn-start" id="submit-btn" disabled>
+          <span>Start Practice Paper</span>
+          <span class="zp-btn-desc" id="btn-desc">Select topics to begin</span>
+        </button>
+      </div>
+    </div>
+  </form>
+</div>
 
 <script>
 (() => {{
   const form = document.getElementById('build-form');
   const chapField = document.getElementById('chapters');
   const stField = document.getElementById('subtopics');
+  const diffField = document.getElementById('difficulties');
+  const yearField = document.getElementById('years');
   const modeField = document.getElementById('mode');
   const countField = document.getElementById('count');
   const jeeBox = document.getElementById('jee-mode');
-  const durRow = document.getElementById('dur-row');
+  const durBox = document.getElementById('dur-box');
   const durInput = document.getElementById('duration');
-  const pickSummary = document.getElementById('pick-summary');
-  const poolCount = document.getElementById('pool-count');
   const submitBtn = document.getElementById('submit-btn');
-  const btnSubtext = document.getElementById('btn-subtext');
+  const summaryText = document.getElementById('zp-summary');
+  const poolEstimate = document.getElementById('zp-pool-estimate');
+  const btnDesc = document.getElementById('btn-desc');
+  const searchInput = document.getElementById('zp-search-input');
 
-  // 1. Subject Tabs Filter
-  document.querySelectorAll('.sub-tab').forEach(tab => {{
-    tab.addEventListener('click', () => {{
-      document.querySelectorAll('.sub-tab').forEach(t => t.classList.remove('active'));
-      tab.classList.add('active');
-      const target = tab.dataset.tab;
-      document.querySelectorAll('.subject-section').forEach(sec => {{
-        if (target === 'all' || sec.dataset.subject === target) {{
-          sec.style.display = '';
+  // 1. Subject Switcher Pills (Mathematics, Physics, Chemistry)
+  document.querySelectorAll('.zp-subj-pill').forEach(pill => {{
+    pill.addEventListener('click', () => {{
+      document.querySelectorAll('.zp-subj-pill').forEach(p => p.classList.remove('active'));
+      pill.classList.add('active');
+      const target = pill.dataset.subj;
+      document.querySelectorAll('.zp-subject-group').forEach(group => {{
+        if (group.dataset.subject === target) {{
+          group.style.display = 'block';
         }} else {{
-          sec.style.display = 'none';
+          group.style.display = 'none';
         }}
       }});
+      filterBySearch();
     }});
   }});
 
-  // 2. Expand/Collapse subtopics chevron button
-  document.querySelectorAll('.btn-expand-subtopics').forEach(btn => {{
+  // Initially show only Mathematics (ZenithPrep default)
+  document.querySelectorAll('.zp-subject-group').forEach(g => {{
+    g.style.display = g.dataset.subject === 'Maths' ? 'block' : 'none';
+  }});
+
+  // 2. Expand/Collapse Arrow buttons (▶)
+  document.querySelectorAll('.zp-expand-btn').forEach(btn => {{
     btn.addEventListener('click', (e) => {{
       e.preventDefault();
       e.stopPropagation();
-      const card = btn.closest('.chapter-card');
-      card.classList.toggle('expanded');
-      btn.setAttribute('aria-expanded', card.classList.contains('expanded'));
+      const item = btn.closest('.zp-chapter-item');
+      item.classList.toggle('expanded');
+      btn.setAttribute('aria-expanded', item.classList.contains('expanded'));
     }});
   }});
 
-  // 3. Question Count Pills
-  document.querySelectorAll('.count-pill').forEach(pill => {{
-    pill.addEventListener('click', () => {{
-      document.querySelectorAll('.count-pill').forEach(p => p.classList.remove('active'));
-      pill.classList.add('active');
-      countField.value = pill.dataset.count;
-      // Default duration: 2 mins per question
-      if (!jeeBox.checked) {{
-        durInput.value = Math.max(10, Math.min(180, Number(pill.dataset.count) * 2));
+  // 3. Search Filter
+  function filterBySearch() {{
+    const q = searchInput.value.trim().toLowerCase();
+    const activeSubj = document.querySelector('.zp-subj-pill.active')?.dataset.subj || 'Maths';
+    const activeGroup = document.querySelector(`.zp-subject-group[data-subject="${{activeSubj}}"]`);
+    if (!activeGroup) return;
+
+    activeGroup.querySelectorAll('.zp-chapter-item').forEach(item => {{
+      const name = item.dataset.name || '';
+      const tray = item.querySelector('.zp-subtopics-tray');
+      const trayText = tray ? tray.textContent.toLowerCase() : '';
+      if (!q || name.includes(q) || trayText.includes(q)) {{
+        item.style.display = '';
+        if (q && trayText.includes(q)) {{
+          item.classList.add('expanded');
+        }}
+      }} else {{
+        item.style.display = 'none';
       }}
-      sync();
     }});
-  }});
+  }}
+  searchInput.addEventListener('input', filterBySearch);
 
-  // 4. JEE Mode Toggle
-  jeeBox.addEventListener('change', () => {{
-    durRow.hidden = jeeBox.checked;
-    modeField.value = jeeBox.checked ? 'jee' : '';
+  // 4. Select All / Clear for active subject
+  document.getElementById('btn-select-all').addEventListener('click', () => {{
+    const activeSubj = document.querySelector('.zp-subj-pill.active')?.dataset.subj || 'Maths';
+    const activeGroup = document.querySelector(`.zp-subject-group[data-subject="${{activeSubj}}"]`);
+    if (activeGroup) {{
+      activeGroup.querySelectorAll('.chap, .subtopic').forEach(c => c.checked = true);
+    }}
     sync();
   }});
 
-  // 5. Chapter Checkbox Changes
-  document.querySelectorAll('.chap').forEach(ch => {{
-    ch.addEventListener('change', () => {{
-      const card = ch.closest('.chapter-card');
-      const chapId = ch.value;
-      card.querySelectorAll('.subtopic').forEach(st => {{
-        st.checked = ch.checked;
-      }});
-      ch.indeterminate = false;
-      sync();
-    }});
+  document.getElementById('btn-clear-all').addEventListener('click', () => {{
+    const activeSubj = document.querySelector('.zp-subj-pill.active')?.dataset.subj || 'Maths';
+    const activeGroup = document.querySelector(`.zp-subject-group[data-subject="${{activeSubj}}"]`);
+    if (activeGroup) {{
+      activeGroup.querySelectorAll('.chap, .subtopic').forEach(c => c.checked = false);
+    }}
+    sync();
   }});
 
-  // 6. Subtopic Checkbox Changes
-  document.querySelectorAll('.subtopic').forEach(st => {{
-    st.addEventListener('change', () => {{
-      const card = st.closest('.chapter-card');
-      const chapBox = card.querySelector('.chap');
-      const allSubs = [...card.querySelectorAll('.subtopic')];
-      const anyChecked = allSubs.some(s => s.checked);
-      const allChecked = allSubs.every(s => s.checked);
-      chapBox.checked = anyChecked;
-      chapBox.indeterminate = anyChecked && !allChecked;
-      sync();
-    }});
+  // 5. Complete Syllabus Button
+  document.getElementById('btn-complete-syllabus').addEventListener('click', () => {{
+    document.querySelectorAll('.chap, .subtopic').forEach(c => c.checked = true);
+    setCount('75');
+    jeeBox.checked = true;
+    modeField.value = 'jee';
+    durBox.hidden = true;
+    sync();
   }});
 
-  // 7. Subtopic Tray Select/Clear Helpers
+  // 6. Subtopic Tray Select/Clear
   document.querySelectorAll('.select-all-tray').forEach(btn => {{
     btn.addEventListener('click', () => {{
-      const card = btn.closest('.chapter-card');
-      card.querySelectorAll('.subtopic').forEach(st => st.checked = true);
-      const chapBox = card.querySelector('.chap');
-      chapBox.checked = true;
-      chapBox.indeterminate = false;
+      const item = btn.closest('.zp-chapter-item');
+      item.querySelectorAll('.subtopic').forEach(st => st.checked = true);
+      const chap = item.querySelector('.chap');
+      chap.checked = true;
+      chap.indeterminate = false;
       sync();
     }});
   }});
 
   document.querySelectorAll('.clear-tray').forEach(btn => {{
     btn.addEventListener('click', () => {{
-      const card = btn.closest('.chapter-card');
-      card.querySelectorAll('.subtopic').forEach(st => st.checked = false);
-      const chapBox = card.querySelector('.chap');
-      chapBox.checked = false;
-      chapBox.indeterminate = false;
+      const item = btn.closest('.zp-chapter-item');
+      item.querySelectorAll('.subtopic').forEach(st => st.checked = false);
+      const chap = item.querySelector('.chap');
+      chap.checked = false;
+      chap.indeterminate = false;
       sync();
     }});
   }});
 
-  // 8. Select All Subject Button
-  document.querySelectorAll('.btn-select-all-subject').forEach(btn => {{
+  // 7. Chapter and Subtopic changes
+  document.querySelectorAll('.chap').forEach(ch => {{
+    ch.addEventListener('change', () => {{
+      const item = ch.closest('.zp-chapter-item');
+      item.querySelectorAll('.subtopic').forEach(st => st.checked = ch.checked);
+      ch.indeterminate = false;
+      sync();
+    }});
+  }});
+
+  document.querySelectorAll('.subtopic').forEach(st => {{
+    st.addEventListener('change', () => {{
+      const item = st.closest('.zp-chapter-item');
+      const chap = item.querySelector('.chap');
+      const allSubs = [...item.querySelectorAll('.subtopic')];
+      const anyChecked = allSubs.some(s => s.checked);
+      const allChecked = allSubs.every(s => s.checked);
+      chap.checked = anyChecked;
+      chap.indeterminate = anyChecked && !allChecked;
+      sync();
+    }});
+  }});
+
+  // 8. Difficulty and Year Pills Toggle
+  document.querySelectorAll('.diff-chk, .year-chk').forEach(chk => {{
+    chk.addEventListener('change', () => {{
+      const pill = chk.closest('.zp-filter-pill');
+      pill.classList.toggle('active', chk.checked);
+      sync();
+    }});
+  }});
+
+  // 9. Question Count Pills
+  document.querySelectorAll('.zp-cnt-btn').forEach(btn => {{
     btn.addEventListener('click', () => {{
-      const subj = btn.dataset.subj;
-      const sec = btn.closest('.subject-section');
-      const allChaps = [...sec.querySelectorAll('.chap')];
-      const areAllSelected = allChaps.every(c => c.checked);
-      const newState = !areAllSelected;
-      sec.querySelectorAll('.chap, .subtopic').forEach(chk => {{
-        chk.checked = newState;
-        chk.indeterminate = false;
-      }});
-      btn.textContent = newState ? `Clear ${{subj}}` : `Select all ${{subj}}`;
+      setCount(btn.dataset.count);
       sync();
     }});
   }});
 
-  // 9. Quick Presets
-  document.querySelectorAll('.preset-btn').forEach(btn => {{
-    btn.addEventListener('click', () => {{
-      const preset = btn.dataset.preset;
-      if (preset === 'clear') {{
-        document.querySelectorAll('.chap, .subtopic').forEach(c => {{
-          c.checked = false;
-          c.indeterminate = false;
-        }});
-      }} else if (preset === 'full') {{
-        document.querySelectorAll('.chap, .subtopic').forEach(c => {{
-          c.checked = true;
-          c.indeterminate = false;
-        }});
-        setCountPill('75');
-        jeeBox.checked = true;
-        durRow.hidden = true;
-        modeField.value = 'jee';
-      }} else if (preset === 'phy' || preset === 'chem' || preset === 'math') {{
-        const targetSubj = preset === 'phy' ? 'Physics' : preset === 'chem' ? 'Chemistry' : 'Maths';
-        document.querySelectorAll('.chap, .subtopic').forEach(c => {{
-          const isTarget = c.dataset.subj === targetSubj;
-          c.checked = isTarget;
-          c.indeterminate = false;
-        }});
-        setCountPill('30');
-      }}
-      sync();
+  function setCount(n) {{
+    document.querySelectorAll('.zp-cnt-btn').forEach(b => {{
+      b.classList.toggle('active', b.dataset.count === n);
     }});
-  }});
-
-  function setCountPill(num) {{
-    document.querySelectorAll('.count-pill').forEach(p => {{
-      if (p.dataset.count === num) {{
-        p.classList.add('active');
-        countField.value = num;
-      }} else {{
-        p.classList.remove('active');
-      }}
-    }});
+    countField.value = n;
   }}
 
-  // 10. Sync state, counter and button
+  // 10. JEE Mode
+  jeeBox.addEventListener('change', () => {{
+    modeField.value = jeeBox.checked ? 'jee' : '';
+    durBox.hidden = jeeBox.checked;
+    sync();
+  }});
+
+  // 11. Sync state, pill badges, and submit button
   function sync() {{
     const checkedChaps = [...document.querySelectorAll('.chap:checked')];
     const checkedSubs = [...document.querySelectorAll('.subtopic:checked')];
     chapField.value = checkedChaps.map(c => c.value).join(',');
     stField.value = checkedSubs.map(s => s.value).join(',');
 
+    // Difficulty & Year list
+    const diffs = [...document.querySelectorAll('.diff-chk:checked')].map(c => c.value);
+    const yrs = [...document.querySelectorAll('.year-chk:checked')].map(c => c.value);
+    diffField.value = diffs.join(',');
+    yearField.value = yrs.join(',');
+
+    // Update subject pill badges
+    ['Maths', 'Physics', 'Chemistry'].forEach(subj => {{
+      const key = subj === 'Maths' ? 'math' : subj === 'Physics' ? 'phy' : 'chem';
+      const badge = document.getElementById(`badge-${{key}}`);
+      const cnt = document.querySelectorAll(`.chap:checked[data-subj="${{subj}}"]`).length;
+      if (badge) badge.textContent = cnt;
+    }});
+
+    // Calculate pool
     let pool = 0;
     checkedChaps.forEach(c => {{
       pool += Number(c.dataset.count || 0);
     }});
 
     const nChapters = checkedChaps.length;
-    const nSubs = checkedSubs.length;
-    const qCount = countField.value || 15;
+    const qCount = countField.value || 30;
 
-    if (nChapters === 0 && nSubs === 0) {{
-      pickSummary.textContent = '0 Topics';
-      poolCount.textContent = '0 available';
+    if (nChapters === 0 && checkedSubs.length === 0) {{
+      summaryText.innerHTML = '<b>0 chapters selected</b><span class="dim">Pick chapters above</span>';
       submitBtn.disabled = true;
-      btnSubtext.textContent = 'Select topics above to start';
+      btnDesc.textContent = 'Select topics to begin';
     }} else {{
-      pickSummary.textContent = `${{nChapters}} Units (${{nSubs}} Subtopics)`;
-      poolCount.textContent = `~${{pool.toLocaleString()}} in pool`;
+      summaryText.innerHTML = `<b>${{nChapters}} chapters (${{checkedSubs.length}} subtopics)</b><span class="dim">~${{pool.toLocaleString()}} questions in pool</span>`;
       submitBtn.disabled = false;
-      const durationMins = jeeBox.checked ? `${{Math.min(3, Math.max(1, new Set(checkedChaps.map(c => c.dataset.subj)).size)) * 60}} Mins` : `${{durInput.value}} Mins`;
-      btnSubtext.textContent = `${{qCount}} Questions · ${{durationMins}}`;
+      const subjsCount = new Set(checkedChaps.map(c => c.dataset.subj)).size;
+      const duration = jeeBox.checked ? `${{Math.max(1, subjsCount) * 60}} Mins (JEE Mode)` : `${{durInput.value}} Mins`;
+      btnDesc.textContent = `${{qCount}} Questions · ${{duration}}`;
     }}
   }}
 
-  // Initialize
   sync();
 }})();
 </script>"#,

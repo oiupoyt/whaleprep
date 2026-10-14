@@ -1573,3 +1573,634 @@ button.pal-fab {
     margin: 15mm;
   }
 }
+
+/* ============================================================
+   ZENITHPREP UI REPLICA STYLES
+   ============================================================ */
+
+.zp-builder-page {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 10px 0 60px;
+}
+
+.zp-page-title {
+  font-size: 2.1rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: #ffffff;
+  margin: 14px 0 8px;
+}
+
+.zp-page-subtitle {
+  color: #94a3b8;
+  font-size: 0.95rem;
+  line-height: 1.55;
+  margin-bottom: 24px;
+}
+
+/* Top Mode Cards */
+.zp-mode-cards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin-bottom: 22px;
+}
+
+.zp-mode-card {
+  background: #131b32;
+  border: 1px solid #24355a;
+  border-radius: 12px;
+  padding: 16px 18px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.zp-mode-card:hover {
+  background: #182342;
+  border-color: #38bdf8;
+}
+
+.zp-mode-card.active {
+  background: #16254a;
+  border: 2px solid #3b82f6;
+  box-shadow: 0 4px 16px rgba(37, 99, 235, 0.25);
+}
+
+.zp-mode-title {
+  display: block;
+  font-size: 1rem;
+  font-weight: 700;
+  color: #ffffff;
+  margin-bottom: 4px;
+}
+
+.zp-mode-card.active .zp-mode-title {
+  color: #60a5fa;
+}
+
+.zp-mode-desc {
+  font-size: 0.825rem;
+  color: #94a3b8;
+  line-height: 1.4;
+}
+
+/* Complete Syllabus Section */
+.zp-syllabus-section {
+  margin-bottom: 24px;
+}
+
+.zp-btn-syllabus {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: #172344;
+  border: 1px solid #2e4478;
+  border-radius: 10px;
+  padding: 10px 18px;
+  color: #93c5fd;
+  font-size: 0.95rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.zp-btn-syllabus:hover {
+  background: #1d2c54;
+  border-color: #60a5fa;
+  color: #ffffff;
+  transform: translateY(-1px);
+}
+
+.zp-book-icon {
+  font-size: 1.1rem;
+}
+
+.zp-syllabus-desc {
+  color: #94a3b8;
+  font-size: 0.85rem;
+  margin-top: 8px;
+  line-height: 1.45;
+}
+
+/* Subject Filter Pills Bar */
+.zp-subject-pills-bar {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 18px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.zp-subj-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: #131b32;
+  border: 1px solid #233357;
+  border-radius: 10px;
+  padding: 9px 16px;
+  color: #cbd5e1;
+  font-size: 0.925rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.zp-subj-pill:hover {
+  background: #182342;
+  color: #ffffff;
+}
+
+.zp-subj-pill.active {
+  background: #1d2b52;
+  border-color: #3b82f6;
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.3);
+}
+
+.zp-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.dot-math { background: #c084fc; box-shadow: 0 0 8px rgba(192, 132, 252, 0.6); }
+.dot-phy  { background: #22d3ee; box-shadow: 0 0 8px rgba(34, 211, 238, 0.6); }
+.dot-chem { background: #fb923c; box-shadow: 0 0 8px rgba(251, 146, 60, 0.6); }
+
+.zp-subj-badge {
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: var(--radius-pill);
+  background: rgba(255, 255, 255, 0.12);
+  color: #e2e8f0;
+}
+
+/* Search and Action Bar */
+.zp-search-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 14px;
+}
+
+.zp-search-input-wrap {
+  position: relative;
+  flex: 1;
+}
+
+.zp-search-icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #64748b;
+  pointer-events: none;
+}
+
+#zp-search-input {
+  background: #10172c;
+  border: 1px solid #202d4b;
+  border-radius: 8px;
+  padding: 10px 14px 10px 38px;
+  font-size: 0.875rem;
+  color: #ffffff;
+  min-height: 40px;
+  width: 100%;
+}
+#zp-search-input:focus {
+  border-color: #38bdf8;
+  box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.2);
+}
+
+.zp-search-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.zp-btn-action {
+  background: #141c33;
+  border: 1px solid #24355a;
+  border-radius: 8px;
+  padding: 8px 14px;
+  color: #cbd5e1;
+  font-size: 0.825rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.zp-btn-action:hover {
+  background: #1a2544;
+  color: #ffffff;
+  border-color: #38bdf8;
+}
+
+/* Chapter List Container (ZenithPrep Table Style) */
+.zp-chapters-container {
+  background: #11182d;
+  border: 1px solid #1f2c4a;
+  border-radius: 12px;
+  overflow: hidden;
+  margin-bottom: 24px;
+}
+
+.zp-chapter-item {
+  border-bottom: 1px solid #1a243f;
+}
+.zp-chapter-item:last-child {
+  border-bottom: none;
+}
+
+.zp-chapter-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  transition: background 0.15s ease;
+}
+
+.zp-chapter-row:hover {
+  background: #151f38;
+}
+
+.zp-chk-wrap {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex: 1;
+  cursor: pointer;
+}
+
+.zp-chk-wrap input[type=checkbox] {
+  width: 19px;
+  height: 19px;
+  accent-color: #2563eb;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.zp-chapter-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #f8fafc;
+  line-height: 1.4;
+}
+
+.zp-expand-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  background: transparent;
+  border: none;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.zp-expand-btn:hover {
+  color: #38bdf8;
+  background: #17223e;
+}
+
+.zp-caret-icon {
+  transition: transform 0.2s ease;
+}
+
+.zp-chapter-item.expanded .zp-caret-icon {
+  transform: rotate(90deg);
+}
+
+/* Subtopics Drawer */
+.zp-subtopics-tray {
+  display: none;
+  background: #0d1324;
+  border-top: 1px solid #19243e;
+  padding: 12px 18px 16px 48px;
+}
+
+.zp-chapter-item.expanded .zp-subtopics-tray {
+  display: block;
+}
+
+.zp-subtopics-tray-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  font-size: 0.775rem;
+}
+
+.zp-link-btn {
+  color: #38bdf8;
+  background: none;
+  border: none;
+  font-size: 0.75rem;
+  font-family: inherit;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 0;
+}
+.zp-link-btn:hover {
+  text-decoration: underline;
+}
+
+.zp-subtopics-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.zp-subtopic-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 0;
+  cursor: pointer;
+  font-size: 0.85rem;
+  color: #cbd5e1;
+}
+
+.zp-subtopic-row:hover {
+  color: #ffffff;
+}
+
+.zp-subtopic-row input[type=checkbox] {
+  width: 15px;
+  height: 15px;
+  accent-color: #2563eb;
+  cursor: pointer;
+}
+
+/* ============================================================
+   BOTTOM FILTER CARD (DIFFICULTY & YEARS) — Exact Zenith Replica
+   ============================================================ */
+
+.zp-filter-box {
+  background: #11182d;
+  border: 1px solid #202e4d;
+  border-radius: 14px;
+  padding: 20px 22px;
+  margin-bottom: 24px;
+}
+
+.zp-filter-sec {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.zp-filter-heading {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: #64748b;
+  text-transform: uppercase;
+}
+
+.zp-pill-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.zp-filter-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 16px;
+  border-radius: 20px;
+  background: #141c33;
+  border: 1px solid #25365c;
+  color: #94a3b8;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.zp-filter-pill:hover {
+  border-color: #38bdf8;
+  color: #ffffff;
+}
+
+.zp-filter-pill input {
+  display: none;
+}
+
+.zp-filter-pill.active {
+  background: #1c2c54;
+  border-color: #3b82f6;
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.25);
+}
+
+.zp-pill-tick {
+  font-size: 0.75rem;
+  color: #60a5fa;
+  font-weight: 700;
+}
+
+/* Settings Bar */
+.zp-settings-bar {
+  background: #11182d;
+  border: 1px solid #202e4d;
+  border-radius: 14px;
+  padding: 20px 22px;
+}
+
+.zp-settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid #1a2542;
+}
+
+.zp-setting-item {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.zp-setting-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #64748b;
+  margin: 0;
+}
+
+.zp-count-pills {
+  display: flex;
+  gap: 6px;
+}
+
+.zp-cnt-btn {
+  padding: 8px 14px;
+  border-radius: 8px;
+  background: #141c33;
+  border: 1px solid #24355a;
+  color: #cbd5e1;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.zp-cnt-btn:hover {
+  border-color: #38bdf8;
+  color: #ffffff;
+}
+
+.zp-cnt-btn.active {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.35);
+}
+
+.zp-toggle-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.85rem;
+  color: #cbd5e1;
+  cursor: pointer;
+  margin: 0;
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.zp-toggle-label input[type=checkbox] {
+  width: 17px;
+  height: 17px;
+  accent-color: #2563eb;
+  cursor: pointer;
+}
+
+.zp-submit-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+
+.zp-summary-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.zp-summary-text b {
+  font-size: 1rem;
+  color: #ffffff;
+}
+
+.zp-btn-start {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 12px 28px;
+  border-radius: 10px;
+  background: #2563eb;
+  border: none;
+  color: #ffffff;
+  font-size: 1rem;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.45);
+  transition: all 0.15s ease;
+  min-width: 220px;
+}
+
+.zp-btn-start:hover:not(:disabled) {
+  background: #1d4ed8;
+  box-shadow: 0 6px 20px rgba(37, 99, 235, 0.6);
+  transform: translateY(-1px);
+}
+
+.zp-btn-start:disabled {
+  opacity: 0.4;
+  background: #182342;
+  border: 1px solid #24355a;
+  color: #64748b;
+  cursor: not-allowed;
+  box-shadow: none;
+  transform: none;
+}
+
+.zp-btn-desc {
+  font-size: 0.725rem;
+  font-weight: 400;
+  opacity: 0.85;
+}
+
+/* Brand Group in Header */
+.brand-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.badge-syll {
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(37, 99, 235, 0.2);
+  border: 1px solid rgba(37, 99, 235, 0.4);
+  color: #93c5fd;
+}
+
+.user-greeting {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #f8fafc;
+}
+
+.btn-logout {
+  color: #94a3b8;
+  font-size: 0.825rem;
+  font-weight: 500;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: color 0.15s;
+}
+.btn-logout:hover {
+  color: #ef4444;
+}
+
+@media (max-width: 700px) {
+  .zp-mode-cards {
+    grid-template-columns: 1fr;
+  }
+  .zp-settings-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .zp-submit-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .zp-btn-start {
+    width: 100%;
+  }
+}

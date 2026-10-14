@@ -50,6 +50,12 @@ pub struct BuildForm {
     /// When non-empty, only questions from these subtopic ids are drawn.
     #[serde(default)]
     pub subtopics: String,
+    /// Comma-separated difficulties (e.g. "Easy,Medium,Hard").
+    #[serde(default)]
+    pub difficulties: String,
+    /// Comma-separated years (e.g. "2020,2021,2022,2023,2024,2025").
+    #[serde(default)]
+    pub years: String,
     pub count: Option<usize>,
     pub duration: Option<i64>,
     pub unseen_only: Option<String>,
@@ -64,6 +70,19 @@ impl BuildForm {
     }
     pub fn subtopic_ids(&self) -> Vec<i64> {
         self.subtopics.split(',').filter_map(|c| c.trim().parse().ok()).collect()
+    }
+    pub fn difficulty_list(&self) -> Vec<String> {
+        self.difficulties
+            .split(',')
+            .map(|d| d.trim().to_string())
+            .filter(|d| !d.is_empty())
+            .collect()
+    }
+    pub fn year_list(&self) -> Vec<i64> {
+        self.years
+            .split(',')
+            .filter_map(|y| y.trim().parse().ok())
+            .collect()
     }
     pub fn is_jee_mode(&self) -> bool {
         self.mode == "jee"
@@ -93,33 +112,49 @@ pub async fn build_paper(pool: &SqlitePool, uid: &str, f: &BuildForm) -> anyhow:
         f.duration.unwrap_or(count as i64 * 2).clamp(5, 180)
     };
 
+    let diffs = f.difficulty_list();
+    let years = f.year_list();
+
     let mut ids: Vec<i64> = Vec::new();
-    // Chapters × subtopics: one indexed lookup per pair (sqlx needs a static
-    // string per branch, hence the unseen/not split inline).
+    // Chapters × subtopics: indexed lookup per pair, filtering difficulty & year if selected.
     for ch in &chapters {
         if !subtopics.is_empty() {
             for st in &subtopics {
                 let rows: Vec<sqlx::sqlite::SqliteRow> = if unseen {
                     sqlx::query(
-                        "SELECT q.id FROM questions q                          WHERE q.chapter_id=? AND q.subtopic_id=?                          AND q.id NOT IN (SELECT question_id FROM seen_questions WHERE user_id=?)"
+                        "SELECT q.id, q.difficulty, q.year FROM questions q WHERE q.chapter_id=? AND q.subtopic_id=? AND q.id NOT IN (SELECT question_id FROM seen_questions WHERE user_id=?)"
                     ).bind(ch).bind(st).bind(uid).fetch_all(pool).await?
                 } else {
                     sqlx::query(
-                        "SELECT q.id FROM questions q WHERE q.chapter_id=? AND q.subtopic_id=?"
+                        "SELECT q.id, q.difficulty, q.year FROM questions q WHERE q.chapter_id=? AND q.subtopic_id=?"
                     ).bind(ch).bind(st).fetch_all(pool).await?
                 };
-                for r in rows { ids.push(r.get::<i64, _>("id")); }
+                for r in rows {
+                    let d: String = r.get("difficulty");
+                    let y: i64 = r.get("year");
+                    if (!diffs.is_empty() && !diffs.iter().any(|x| x.eq_ignore_ascii_case(&d))) || (!years.is_empty() && !years.contains(&y)) {
+                        continue;
+                    }
+                    ids.push(r.get::<i64, _>("id"));
+                }
             }
         } else {
             let rows: Vec<sqlx::sqlite::SqliteRow> = if unseen {
                 sqlx::query(
-                    "SELECT q.id FROM questions q WHERE q.chapter_id=?                      AND q.id NOT IN (SELECT question_id FROM seen_questions WHERE user_id=?)"
+                    "SELECT q.id, q.difficulty, q.year FROM questions q WHERE q.chapter_id=? AND q.id NOT IN (SELECT question_id FROM seen_questions WHERE user_id=?)"
                 ).bind(ch).bind(uid).fetch_all(pool).await?
             } else {
-                sqlx::query("SELECT q.id FROM questions q WHERE q.chapter_id=?")
+                sqlx::query("SELECT q.id, q.difficulty, q.year FROM questions q WHERE q.chapter_id=?")
                     .bind(ch).fetch_all(pool).await?
             };
-            for r in rows { ids.push(r.get::<i64, _>("id")); }
+            for r in rows {
+                let d: String = r.get("difficulty");
+                let y: i64 = r.get("year");
+                if (!diffs.is_empty() && !diffs.iter().any(|x| x.eq_ignore_ascii_case(&d))) || (!years.is_empty() && !years.contains(&y)) {
+                    continue;
+                }
+                ids.push(r.get::<i64, _>("id"));
+            }
         }
     }
     // Deduplicate: a question can match multiple subtopics if the form sent both.
@@ -130,12 +165,8 @@ pub async fn build_paper(pool: &SqlitePool, uid: &str, f: &BuildForm) -> anyhow:
     // instead of erroring. seen_at='' rows (pre-migration) sort first.
     let mut recycled = 0;
     if unseen && (ids.len() as i64) < count as i64 {
-        let need = count as usize - ids.len();
-        let scope_ch: String = chapters.iter().map(|c| c.to_string()).collect::<Vec<_>>().join(",");
-        let scope_st: String = subtopics.iter().map(|st| st.to_string()).collect::<Vec<_>>().join(",");
-        // Static query per branch (sqlx); scope filter applied in Rust below.
-        let seen_rows: Vec<(i64, i64, i64)> = sqlx::query_as(
-            "SELECT q.id, q.chapter_id, q.subtopic_id FROM questions q
+        let seen_rows: Vec<(i64, i64, i64, String, i64)> = sqlx::query_as(
+            "SELECT q.id, q.chapter_id, q.subtopic_id, q.difficulty, q.year FROM questions q
              JOIN seen_questions sq ON sq.question_id=q.id AND sq.user_id=?
              ORDER BY sq.seen_at ASC",
         )
@@ -143,22 +174,22 @@ pub async fn build_paper(pool: &SqlitePool, uid: &str, f: &BuildForm) -> anyhow:
         .fetch_all(pool)
         .await
         .unwrap_or_default();
-        let in_scope = |ch: i64, st: i64| {
+        let in_scope = |ch: i64, st: i64, d: &str, y: i64| {
             chapters.contains(&ch)
                 && (subtopics.is_empty() || subtopics.contains(&st))
+                && (diffs.is_empty() || diffs.iter().any(|x| x.eq_ignore_ascii_case(d)))
+                && (years.is_empty() || years.contains(&y))
         };
-        let _ = (scope_ch, scope_st);
-        for (qid, ch, st) in seen_rows {
+        for (qid, ch, st, d, y) in seen_rows {
             if ids.len() >= count as usize {
                 break;
             }
-            if !in_scope(ch, st) || ids.contains(&qid) {
+            if !in_scope(ch, st, &d, y) || ids.contains(&qid) {
                 continue;
             }
             ids.push(qid);
             recycled += 1;
         }
-        let _ = need;
     }
     if ids.is_empty() {
         anyhow::bail!("No questions left for that selection. Turn off 'unseen only' to reuse questions.");
