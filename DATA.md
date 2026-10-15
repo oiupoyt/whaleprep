@@ -73,3 +73,42 @@ meaningful fraction, and a wrong answer key teaches the wrong result —
 worse than no question. NUM import stays out until NTA final answer keys
 (authoritative per-shift source) are transcribed. The grader already
 supports NUM with 0.1% tolerance for hand-added questions.
+
+## Better-database search (2026-10-15 findings)
+
+**Verdict: our current source (HostServer001 examgoal-derived, 9,813 questions)
+remains the best publicly usable structured JEE Main bank.**
+
+Repositories audited:
+
+1. **thesrijankumar/Indian_Exams_PYQ** (GitHub, ~4 MB) — contains 223 JEE Main
+   shift-wise PDFs (2020-2026) plus JEE Advanced. Sounds ideal, but:
+   - All files are stored in **Git LFS**, and the LFS batch API returns no
+     download URLs (free-tier bandwidth cap) — files are effectively
+     inaccessible without authentication.
+   - Even with access, they are **scanned PDFs**: NTA renders question text
+     as images, so `pdftotext` yields only question IDs (verified earlier
+     on NTA's own `cdnbbsr` PDFs). No text-layer exists to extract.
+   - Use: a future per-shift "actual paper" mode could render these PDFs
+     page-by-page as images, but not as structured questions.
+
+2. **examgoal CDN images** — the 1,909 image-questions we skip at import
+   reference `app-content.cdn.examgoal.net` / `imagex.cdn.examgoal.net`
+   URLs. All return **403/404** without signed URLs. Hotlinking is a dead
+   end; embedding them would also break whenever their CDN expires.
+
+3. **jiteshtripathimath-lab / SBStudio07 / aryan-kronos** — marketing sites
+   and Telegram bots, no structured data.
+
+**Why "Hard mode feels easy"** (resolved):
+- The 24 hand-written seed questions (Q1-Q24) were trivial one-liners
+  mixed into the real bank. They are now **deleted** from the live DB.
+- The difficulty labels come from the examgoal source's user-vote metadata,
+  not from NTA. Distribution across 9,789 real PYQs: 4,007 Easy / 5,614
+  Medium / 168 Hard. JEE Main genuinely has few "hard" questions per shift
+  (~2-3 of 75); the exam's difficulty comes from time pressure, not
+  per-question complexity. For a harder practice set, filter to Medium+Hard
+  and recent years (2021+) — the builder supports both filters now.
+- All 9,813 questions verified `exam='jee-main'` in source metadata
+  (2002-2025, AIEEE-era questions included since AIEEE IS JEE Main's
+  predecessor under the same NTA syllabus).
