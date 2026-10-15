@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#3b82f6"/>
+      <stop offset="1" stop-color="#1d4ed8"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Whale body: rounded paisley shape with the tail curving up-right -->
+  <path fill="url(#g)" d="
+    M 100 320
+    C 100 220 190 120 320 120
+    C 370 120 410 140 435 175
+    C 448 192 452 210 450 225
+    C 448 238 438 244 426 240
+    C 400 230 360 228 320 240
+    C 270 256 230 290 215 330
+    L 210 345
+    C 207 352 200 355 194 351
+    L 120 310
+    C 108 303 98 305 94 314
+    C 91 320 93 327 100 320
+    Z"/>
+
+  <!-- Tail fluke: two pointed triangles -->
+  <path fill="url(#g)" d="
+    M 435 175
+    L 475 95
+    C 480 84 494 84 497 96
+    L 512 135
+    C 515 145 508 155 497 153
+    L 448 138
+    L 485 170
+    C 492 176 490 188 481 191
+    L 450 200
+    Z"/>
+
+  <!-- Eye -->
+  <circle cx="300" cy="190" r="16" fill="#fff"/>
+
+  <!-- Water spout -->
+  <circle cx="290" cy="95" r="10" fill="url(#g)" opacity="0.9"/>
+  <circle cx="315" cy="70" r="7" fill="url(#g)" opacity="0.7"/>
+  <circle cx="335" cy="50" r="5" fill="url(#g)" opacity="0.5"/>
+
+  <!-- Smile curve -->
+  <path d="M 270 240 Q 290 255 315 242" stroke="#fff" stroke-width="8" fill="none" stroke-linecap="round" opacity="0.3"/>
+
+  <!-- Wave -->
+  <path d="M 40 430 Q 128 400 216 430 T 392 430" stroke="#3b82f6" stroke-width="16" fill="none" stroke-linecap="round" opacity="0.3"/>
+</svg>

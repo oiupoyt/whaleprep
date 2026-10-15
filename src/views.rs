@@ -88,12 +88,27 @@ pub struct SubjectBlock {
 
 fn head(ctx: &Ctx, title: &str) -> String {
     format!(
-        r#"<!doctype html><html lang="en"><head><meta charset="utf-8">
+        r##"<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>{t} · WhalePrep</title><link rel="stylesheet" href="{b}/static/style.css">
+<title>{t} · WhalePrep</title>
+<link rel="icon" type="image/png" href="{b}/static/favicon.png">
+<link rel="apple-touch-icon" href="{b}/static/apple-touch-icon.png">
+<link rel="stylesheet" href="{b}/static/style.css">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="WhalePrep">
+<meta property="og:title" content="{t} · WhalePrep">
+<meta property="og:description" content="Practice JEE Main previous year questions on a timed exam screen. 9,813 PYQs from 2002-2025 across 53 official NTA syllabus units.">
+<meta property="og:image" content="{origin}/static/embed.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="{t} · WhalePrep">
+<meta name="twitter:description" content="Practice JEE Main previous year questions on a timed exam screen. 9,813 PYQs from 2002-2025.">
+<meta name="twitter:image" content="{origin}/static/embed.png">
+<meta name="theme-color" content="#0a0f1c">
 <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"></script>
 <script>document.addEventListener("DOMContentLoaded", function() {{
@@ -102,15 +117,23 @@ fn head(ctx: &Ctx, title: &str) -> String {
     trust: false, strict: false, throwOnError: false
   }});
 }});</script>
-</head><body>"#,
+</head><body>"##,
         t = esc(title),
-        b = ctx.base
+        b = ctx.base,
+        origin = public_origin()
     )
+}
+
+/// The absolute origin for og:image URLs — meta tags need a full URL, not a
+/// relative path. Derived from the request when behind the tunnel; falls
+/// back to the production domain.
+fn public_origin() -> String {
+    std::env::var("PUBLIC_ORIGIN").unwrap_or_else(|_| "https://whaleprep.oiupoyt.space".into())
 }
 
 fn nav(ctx: &Ctx, user: Option<&str>) -> String {
     let brand = format!(
-        r##"<header class="topbar"><div class="brand-group"><a class="brand" href="{b}/"><svg class="brand-logo" viewBox="0 0 24 24" width="22" height="22"><path fill="#60a5fa" d="M12 2L1 21h22L12 2zm0 4.5l7.5 13H4.5L12 6.5z"/></svg> WhalePrep</a></div><nav class="nav">"##,
+        r##"<header class="topbar"><div class="brand-group"><a class="brand" href="{b}/"><img class="brand-logo" src="{b}/static/logo.svg" alt="WhalePrep logo" width="28" height="28"> WhalePrep</a></div><nav class="nav">"##,
         b = ctx.base
     );
     let links = match user {

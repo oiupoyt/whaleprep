@@ -2216,3 +2216,10 @@ button.pal-fab {
 .zp-subtopic-row:has(input:checked) .zp-subtopic-title {
   color: #60a5fa;
 }
+
+/* ===== brand logo ===== */
+img.brand-logo {
+  display: inline-block;
+  vertical-align: middle;
+  filter: drop-shadow(0 0 6px rgba(59, 130, 246, 0.3));
+}
