@@ -26,6 +26,14 @@ pub fn rich(s: &str) -> String {
         "br", "p", "sup", "sub", "b", "strong", "i", "em", "u", "ol", "ul",
         "li", "table", "tbody", "thead", "tr", "th", "td", "span",
     ];
+    // A `<` only starts a tag when followed by a letter, `/`, `!` or `?`
+    // (i.e. `<p>`, `</p>`, `<!--`, `<?`). A `<` followed by a space, digit,
+    // `=` or end-of-string is literal math text (`\(a < 0\)`) and must be
+    // escaped, not parsed as a tag — otherwise the sanitizer eats the `<`
+    // and its content, unbalancing the KaTeX delimiters downstream.
+    fn is_tag_start(after_lt: &str) -> bool {
+        matches!(after_lt.chars().next(), Some('a'..='z' | 'A'..='Z' | '/' | '!' | '?'))
+    }
     let mut o = String::with_capacity(s.len());
     let mut rest = s;
     while let Some(idx) = rest.find('<') {
@@ -36,6 +44,12 @@ pub fn rich(s: &str) -> String {
                 '>' => o.push_str("&gt;"),
                 other => o.push(other),
             }
+        }
+        let after_lt = &after[1..];
+        if !is_tag_start(after_lt) {
+            o.push_str("&lt;");
+            rest = after_lt;
+            continue;
         }
         if let Some(end) = after.find('>') {
             let inner = after[1..end].trim();
@@ -1247,4 +1261,37 @@ pub fn shared(ctx: &Ctx, title: &str, duration: i64, questions: &[Question], pap
         cta = cta
     );
     shell(ctx, None, title, body)
+}
+#[cfg(test)]
+mod rich_tests {
+    use super::rich;
+
+    #[test]
+    fn raw_less_than_in_math_survives() {
+        let input = r"<p>B. \(\operatorname{Im}\left(z_{1}\right) < 0\) and \(\operatorname{Im}\left(z_{2}\right) > 0\)</p>";
+        let out = rich(input);
+        // The `<` must be escaped, not eaten; delimiters stay balanced.
+        assert!(out.contains("&lt;"), "raw < must become &lt;: {out}");
+        assert_eq!(out.matches(r"\(").count(), 2, "both openers survive: {out}");
+        assert_eq!(out.matches(r"\)").count(), 2, "both closers survive: {out}");
+    }
+
+    #[test]
+    fn real_tags_still_pass_through() {
+        let out = rich("<p>Hello <b>world</b><br>line</p>");
+        assert_eq!(out, "<p>Hello <b>world</b><br>line</p>");
+    }
+
+    #[test]
+    fn script_tags_still_stripped() {
+        let out = rich("<p>x</p><script>alert(1)</script>");
+        assert!(!out.contains("script"), "script tags must go: {out}");
+        assert!(out.contains("alert(1)"), "inner text stays: {out}");
+    }
+
+    #[test]
+    fn stray_lt_at_end_escaped() {
+        let out = rich("a < b and c <");
+        assert_eq!(out, "a &lt; b and c &lt;");
+    }
 }

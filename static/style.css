@@ -1837,6 +1837,9 @@ button.pal-fab {
   gap: 14px;
   flex: 1;
   cursor: pointer;
+  text-transform: none;
+  letter-spacing: normal;
+  margin: 0;
 }
 
 .zp-chk-wrap input[type=checkbox] {
@@ -1929,6 +1932,9 @@ button.pal-fab {
   cursor: pointer;
   font-size: 0.85rem;
   color: #cbd5e1;
+  text-transform: none;
+  letter-spacing: normal;
+  margin: 0;
 }
 
 .zp-subtopic-row:hover {
