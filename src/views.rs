@@ -101,13 +101,13 @@ fn head(ctx: &Ctx, title: &str) -> String {
 <meta property="og:site_name" content="WhalePrep">
 <meta property="og:title" content="{t} · WhalePrep">
 <meta property="og:description" content="Practice JEE Main previous year questions on a timed exam screen. 9,813 PYQs from 2002-2025 across 53 official NTA syllabus units.">
-<meta property="og:image" content="{origin}/static/embed.png">
+<meta property="og:image" content="{origin}/static/embed.png?v=3">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="{t} · WhalePrep">
 <meta name="twitter:description" content="Practice JEE Main previous year questions on a timed exam screen. 9,813 PYQs from 2002-2025.">
-<meta name="twitter:image" content="{origin}/static/embed.png">
+<meta name="twitter:image" content="{origin}/static/embed.png?v=3">
 <meta name="theme-color" content="#0a0f1c">
 <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"></script>
@@ -133,7 +133,7 @@ fn public_origin() -> String {
 
 fn nav(ctx: &Ctx, user: Option<&str>) -> String {
     let brand = format!(
-        r##"<header class="topbar"><div class="brand-group"><a class="brand" href="{b}/"><img class="brand-logo" src="{b}/static/logo.png" alt="WhalePrep logo" width="28" height="28"> WhalePrep</a></div><nav class="nav">"##,
+        r##"<header class="topbar"><div class="brand-group"><a class="brand" href="{b}/"><img class="brand-logo" src="{b}/static/logo.png?v=3" alt="WhalePrep logo" width="28" height="28"> WhalePrep</a></div><nav class="nav">"##,
         b = ctx.base
     );
     let links = match user {
