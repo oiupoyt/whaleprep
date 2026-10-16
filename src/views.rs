@@ -1216,6 +1216,39 @@ pub fn dashboard(ctx: &Ctx, user: &str, tests: &[TestRow], weak: &[(Bucket, Stri
 }
 
 pub fn shared(ctx: &Ctx, title: &str, duration: i64, questions: &[Question], paper_id: &str, token: &str, signed: bool) -> String {
+    use std::collections::BTreeMap;
+    // Group questions by subject, preserving first-seen order.
+    let mut order: Vec<String> = Vec::new();
+    let mut by_subj: BTreeMap<String, Vec<(usize, &Question)>> = BTreeMap::new();
+    for (i, q) in questions.iter().enumerate() {
+        if !by_subj.contains_key(&q.subject) {
+            order.push(q.subject.clone());
+        }
+        by_subj.entry(q.subject.clone()).or_default().push((i, q));
+    }
+    let n = questions.len();
+    let max_marks = n as i64 * 4;
+    // Subject sections with chapter lists.
+    let mut sections = String::new();
+    for subj in &order {
+        let qs = &by_subj[subj];
+        let start = qs.first().map(|(i, _)| i + 1).unwrap_or(1);
+        let end = qs.last().map(|(i, _)| i + 1).unwrap_or(n);
+        let mut chapters: Vec<String> = Vec::new();
+        for (_, q) in qs {
+            if !chapters.iter().any(|c| c == &q.chapter) {
+                chapters.push(q.chapter.clone());
+            }
+        }
+        let ch_list: String = chapters.iter().map(|c| format!("<li>{}</li>", esc(c))).collect();
+        sections.push_str(&format!(
+            r#"<div class="card subj-sec"><h3>{subj} <span class="dim">q{start}–q{end}</span></h3><ul class="ch-list">{chs}</ul></div>"#,
+            subj = esc(subj),
+            start = start,
+            end = end,
+            chs = ch_list
+        ));
+    }
     let qs: String = questions
         .iter()
         .enumerate()
@@ -1253,12 +1286,23 @@ pub fn shared(ctx: &Ctx, title: &str, duration: i64, questions: &[Question], pap
         )
     };
     let body = format!(
-        r#"<h1>{title}</h1><p class="meta">{count} questions · {dur} minutes · no answers or scores on this page.</p>{cta}<p><button class="btn" type="button" onclick="window.print()">print / PDF</button></p><div style="margin-top:16px">{qs}</div>"#,
+        r#"<h1>Practice paper</h1><p class="meta">{title} · JEE Main pattern · no answers or scores on this page.</p>
+<div class="kv">
+  <div class="card"><span class="dim">questions</span><b>{count}</b></div>
+  <div class="card"><span class="dim">duration</span><b>{dur} min</b></div>
+  <div class="card"><span class="dim">maximum marks</span><b>{max}</b></div>
+  <div class="card"><span class="dim">marking</span><b>+4 / −1</b></div>
+</div>
+<div class="grid2"><div>{sections}</div><div class="card"><h3>take this paper</h3><p class="meta">The online test works like the real exam: answers count only after save &amp; next.</p>{cta}<p><button class="btn" type="button" onclick="window.print()">print / PDF</button></p><p class="meta">Only the question paper is shared. Your answers and score stay private.</p></div></div>
+<h2>every question</h2>
+<div style="margin-top:12px">{qs}</div>"#,
         title = esc(title),
         count = questions.len(),
         dur = duration,
-        qs = qs,
-        cta = cta
+        max = max_marks,
+        sections = sections,
+        cta = cta,
+        qs = qs
     );
     shell(ctx, None, title, body)
 }
