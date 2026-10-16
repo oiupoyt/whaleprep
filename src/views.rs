@@ -91,8 +91,8 @@ fn head(ctx: &Ctx, title: &str) -> String {
         r##"<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{t} · WhalePrep</title>
-<link rel="icon" type="image/png" href="{b}/static/favicon.png?v=2">
-<link rel="apple-touch-icon" href="{b}/static/apple-touch-icon.png?v=2">
+<link rel="icon" type="image/png" href="{b}/static/favicon.png?v=3">
+<link rel="apple-touch-icon" href="{b}/static/apple-touch-icon.png?v=3">
 <link rel="stylesheet" href="{b}/static/style.css">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
