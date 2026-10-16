@@ -133,7 +133,7 @@ fn public_origin() -> String {
 
 fn nav(ctx: &Ctx, user: Option<&str>) -> String {
     let brand = format!(
-        r##"<header class="topbar"><div class="brand-group"><a class="brand" href="{b}/"><img class="brand-logo" src="{b}/static/logo.svg" alt="WhalePrep logo" width="28" height="28"> WhalePrep</a></div><nav class="nav">"##,
+        r##"<header class="topbar"><div class="brand-group"><a class="brand" href="{b}/"><img class="brand-logo" src="{b}/static/logo.png" alt="WhalePrep logo" width="28" height="28"> WhalePrep</a></div><nav class="nav">"##,
         b = ctx.base
     );
     let links = match user {
