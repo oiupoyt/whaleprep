@@ -255,7 +255,7 @@ pub fn student(ctx: &Ctx, next: &str, err: Option<&str>, fallback: Fallback) -> 
 <p class="meta">{email_note}</p>
 <form method="post" action="{b}/student" style="max-width:420px;margin-top:8px">
   <input type="hidden" name="next" value="{next}">
-  <label for="name">your name</label><input id="name" name="name" type="text" autocomplete="name" placeholder="e.g. Aarav Sharma" required>
+  <label for="name">your name</label><input id="name" name="name" type="text" autocomplete="name" placeholder="e.g. Nikhil The Great" required>
   <label for="email">email</label><input id="email" name="email" type="email" autocomplete="email" placeholder="you@example.com" required>
   {e}
   <div style="margin-top:14px"><button class="btn primary block" type="submit">start practising</button></div>
