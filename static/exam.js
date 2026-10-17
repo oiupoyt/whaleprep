@@ -16,6 +16,8 @@
     const box = p.querySelector('input');
     if (box) entered.set(p.dataset.i, Number(box.dataset.t || 0));
   }
+  const visited = new Set();
+  const saveDot = document.getElementById('save-dot');
 
   function questionId(pane) {
     const radios = [...pane.querySelectorAll('input[type=radio]')];
@@ -39,6 +41,7 @@
   window._examShow = show;
   function show(i) {
     cur = Math.max(0, Math.min(panes.length - 1, i));
+    visited.add(cur);
     panes.forEach((p, k) => { p.hidden = k !== cur; });
     palBtns.forEach((b, k) => {
       b.classList.toggle('cur', k === cur);
@@ -63,35 +66,45 @@
     if (!btn) return;
     const answered = collect(pane).selected !== '';
     const review = pane.dataset.review === '1';
+    const seen = visited.has(Number(pane.dataset.i));
+    // 5 CBT states: unseen (default), visited+blank (skip), answered, marked, answered+marked.
     btn.classList.toggle('ans', answered && !review);
-    btn.classList.toggle('rev', answered && review);
-    btn.classList.toggle('skip', !answered);
+    btn.classList.toggle('ansrev', answered && review);
+    btn.classList.toggle('rev', !answered && review);
+    btn.classList.toggle('skip', !answered && !review && seen);
     btn.classList.remove('cur');
-    const mark = answered ? (review ? 'R' : '✓') : '·';
+    const mark = answered ? (review ? '✓R' : '✓') : '·';
     btn.setAttribute('aria-label', `question ${Number(pane.dataset.i) + 1}, ${answered ? 'answered' : 'blank'}${review ? ', marked for review' : ''}`);
     btn.dataset.mark = mark;
     paintProgress();
   }
 
   function counts() {
-    let answered = 0, review = 0;
+    let answered = 0, review = 0, ansrev = 0, visit = 0;
     for (const p of panes) {
       const c = collect(p);
-      if (c.selected !== '') answered++;
-      if (c.marked_review) review++;
+      const seen = visited.has(Number(p.dataset.i));
+      if (!seen) visit++;
+      if (c.marked_review) { c.selected !== '' ? ansrev++ : review++; }
+      else if (c.selected !== '') answered++;
     }
-    return { answered, review, left: panes.length - answered };
+    return { answered, review, ansrev, visit, left: panes.length - answered - ansrev };
   }
 
   function paintProgress() {
-    const { answered, review, left } = counts();
-    const done = answered + review;
+    const { answered, review, ansrev, visit, left } = counts();
+    const done = answered + review + ansrev;
     if (progressEl) {
       progressEl.textContent = `${done} of ${panes.length} marked · question ${cur + 1}`;
     }
     if (fillEl) fillEl.style.width = `${panes.length ? (done / panes.length) * 100 : 0}%`;
     if (countEl) {
-      countEl.textContent = `${answered} answered · ${left} blank${review ? ` · ${review} review` : ''}`;
+      countEl.textContent = `${answered + ansrev} answered · ${left} left${review + ansrev ? ` · ${review + ansrev} review` : ''}`;
+    }
+    // Five-state readout above the palette grid, mirroring the NTA CBT legend.
+    for (const li of document.querySelectorAll('#pal-stats [data-c]')) {
+      const c = li.dataset.c;
+      li.textContent = String(c === 'visit' ? visit : c === 'skip' ? panes.length - answered - ansrev - review - visit : c === 'ans' ? answered : c === 'rev' ? review : ansrev);
     }
     const fabCount = document.getElementById('pal-fab-count');
     if (fabCount) fabCount.textContent = left ? `· ${left} left` : '· all answered';
@@ -105,6 +118,7 @@
     // A second change while a save is in flight is coalesced into one follow-up write.
     if (saving) { pending = all || pending; return; }
     saving = true;
+    if (saveDot) saveDot.classList.add('busy');
     const panesToSave = all ? panes : [panes[cur]];
     try {
       await fetch(`${form.dataset.base}/attempt/${form.dataset.attempt}/answer`, {
@@ -112,10 +126,13 @@
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ answers: panesToSave.map(collect) }),
       });
+      if (saveDot) { saveDot.classList.remove('busy'); saveDot.classList.add('ok'); }
     } catch (_) {
       // Server unreachable: the selection stays on screen and travels with the form submit.
+      if (saveDot) { saveDot.classList.remove('busy'); saveDot.classList.add('fail'); }
     }
     saving = false;
+    if (saveDot && !saving) setTimeout(() => saveDot.classList.remove('ok', 'fail'), 1200);
     if (pending) { const again = pending; pending = false; save(again); }
   }
 
@@ -133,10 +150,18 @@
       if (!btn) return;
       const act = btn.dataset.act;
       if (act === 'prev') { show(cur - 1); }
+      if (act === 'next') { show(cur + 1); }
       if (act === 'save') { save(false).then(() => { if (cur < panes.length - 1) show(cur + 1); }); }
+      if (act === 'marksave') {
+        pane.dataset.review = '1';
+        pane.querySelector('.mflag')?.removeAttribute('hidden');
+        syncPalette(pane);
+        save(false).then(() => { if (cur < panes.length - 1) show(cur + 1); });
+      }
       if (act === 'review') {
         pane.dataset.review = pane.dataset.review === '1' ? '0' : '1';
         btn.classList.toggle('danger', pane.dataset.review === '1');
+        pane.querySelector('.mflag')?.toggleAttribute('hidden', pane.dataset.review !== '1');
         syncPalette(pane);
         save(false);
       }

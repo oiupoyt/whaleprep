@@ -1107,6 +1107,48 @@ footer {
   text-rendering: auto;
 }
 
+/* Question type pill (right side of pane head) */
+.qpill {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 3px 10px;
+  white-space: nowrap;
+}
+
+/* White typeset question card, mirrors the NTA CBT question block */
+.qcard {
+  background: #ffffff;
+  color: #111827;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 20px 22px;
+  margin: 0 0 12px;
+}
+
+.qcard .stem,
+.qcard .stem p,
+.qcard .stem div,
+.qcard .stem span {
+  color: #111827;
+}
+
+.qcard .stem {
+  margin: 0 0 12px;
+}
+
+.qcard p {
+  margin: 8px 0;
+  color: #111827;
+  line-height: 1.7;
+}
+
+.qcard .katex {
+  color: #111827;
+}
+
 /* Multiple Choice Option Cards */
 .opt {
   display: flex;
@@ -1175,18 +1217,102 @@ footer {
   margin: 0;
 }
 
-.opt-actions {
+/* Exam action bar, mirrors the NTA CBT bottom strip */
+.exam-actions {
   display: flex;
   gap: 10px;
   flex-wrap: wrap;
+  justify-content: space-between;
   margin-top: 20px;
   padding-top: 16px;
   border-top: 1px solid var(--border);
 }
 
-.opt-actions .btn {
-  flex: 1 1 auto;
-  min-width: 130px;
+.exam-actions-left,
+.exam-actions-right {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.exam-actions .btn {
+  flex: 0 1 auto;
+}
+
+@media (max-width: 720px) {
+  .exam-actions-left,
+  .exam-actions-right {
+    width: 100%;
+  }
+  .exam-actions .btn {
+    flex: 1 1 45%;
+  }
+}
+
+/* ZenithPrep-style action colors */
+.btn.act-save {
+  background: #059669;
+  border-color: #059669;
+  color: #ffffff;
+}
+
+.btn.act-save:hover {
+  background: #047857;
+}
+
+.btn.act-mark {
+  background: #d97706;
+  border-color: #d97706;
+  color: #ffffff;
+}
+
+.btn.act-mark:hover {
+  background: #b45309;
+}
+
+.btn.act-review {
+  background: #7c3aed;
+  border-color: #7c3aed;
+  color: #ffffff;
+}
+
+.btn.act-review:hover {
+  background: #6d28d9;
+}
+
+.btn.act-review.danger {
+  background: #581c87;
+  border-color: #8b5cf6;
+}
+
+/* Candidate + autosave indicator in the exam bar */
+.exam-cand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  margin-right: 18px;
+  font-size: 0.825rem;
+}
+
+#save-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--border);
+  transition: background 0.2s ease;
+}
+
+#save-dot.busy {
+  background: #f59e0b;
+}
+
+#save-dot.ok {
+  background: #10b981;
+}
+
+#save-dot.fail {
+  background: #ef4444;
 }
 
 /* Palette Side Column */
@@ -1251,46 +1377,70 @@ footer {
   color: #fde68a;
 }
 
+.pal.ansrev {
+  background: #4c1d95;
+  border-color: #8b5cf6;
+  color: #ddd6fe;
+}
+
 .pal.skip {
   background: var(--panel);
 }
 
-.legend {
+/* Five-state legend counts above the palette grid */
+.pal-stats {
   list-style: none;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin: 8px 0 14px;
+  margin: 10px 0 4px;
+  padding: 0;
   font-size: 0.75rem;
   color: var(--text-muted);
 }
 
-.legend li {
+.pal-stats li {
   display: flex;
   align-items: center;
   gap: 6px;
+  padding: 3px 0;
+  justify-content: space-between;
 }
 
-.legend .sw {
+.pal-stats b {
+  font-weight: 700;
+  color: var(--text-dim);
+}
+
+.pal-stats .sw {
   width: 10px;
   height: 10px;
   display: inline-block;
   border-radius: 2px;
   border: 1px solid var(--border);
+  flex-shrink: 0;
 }
 
-.legend .sw.ans {
+.pal-stats .sw.visit {
+  background: #ffffff;
+  border-color: #9ca3af;
+}
+
+.pal-stats .sw.skip {
+  background: #b91c1c;
+  border-color: #ef4444;
+}
+
+.pal-stats .sw.ans {
   background: #064e3b;
   border-color: #10b981;
 }
 
-.legend .sw.rev {
+.pal-stats .sw.rev {
   background: #78350f;
   border-color: #f59e0b;
 }
 
-.legend .sw.skip {
-  background: var(--panel);
+.pal-stats .sw.ansrev {
+  background: #4c1d95;
+  border-color: #8b5cf6;
 }
 
 /* Floating Palette Button (Mobile) */
@@ -1529,7 +1679,7 @@ button.pal-fab {
 @media print {
   .topbar, .tabbar, footer, .exam-bar, .cbt-side, .opt-actions,
   .mistake-row, .pal-fab, #pal-toggle, form button, .btn, .subj-timer-bar,
-  .exam-progress, .cbt-count, .legend, script, .preset-bar, .subject-tabs,
+  .exam-progress, .cbt-count, .pal-stats, .legend, script, .preset-bar, .subject-tabs,
   .settings-col, .chapter-actions, .subtopics-tray-head {
     display: none !important;
   }

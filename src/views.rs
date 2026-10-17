@@ -785,7 +785,7 @@ fn palette(questions: &[Question], answers: &[(i64, String, bool)]) -> String {
             let sel = a.map(|(_, s, _)| !s.trim().is_empty()).unwrap_or(false);
             let rev = a.map(|(_, _, r)| *r).unwrap_or(false);
             let cls = match (sel, rev) {
-                (true, true) => "pal rev",
+                (true, true) => "pal ansrev",
                 (true, false) => "pal ans",
                 _ => "pal",
             };
@@ -828,31 +828,56 @@ pub fn attempt(ctx: &Ctx, user: &str, attempt_id: &str, questions: &[Question], 
                     .collect()
             };
             format!(
-                r#"<section class="card qpane" id="qpane-{i}" data-i="{i}"{hidden}>
+                r#"<section class="card qpane" id="qpane-{i}" data-i="{i}" data-review="{rev0}"{hidden}>
   <div class="pane-head">
-    <span class="dim">question {n} of {total} · {subj}</span>
-    <span class="dim">{qt} · +4 / −1{revflag}</span>
+    <span class="dim">question {n}</span>
+    <span class="qpill">{subj} · {qtword} · +4 / −1{revflag}</span>
   </div>
-  <div class="stem">{stem}</div>
+  <div class="qcard"><div class="stem">{stem}</div>{qopts}</div>
   <div class="dim meta-line">{sub2} · {ch} · {year} {shift} · {difficulty}</div>
   {opts}
-  <div class="opt-actions">
-    <button type="button" class="btn" data-act="prev"{prevdis}>previous</button>
-    <button type="button" class="btn ok" data-act="save">save &amp; next</button>
-    <button type="button" class="btn" data-act="review"{revcls}>mark for review</button>
-    <button type="button" class="btn" data-act="clear">clear</button>
+  <div class="exam-actions">
+    <div class="exam-actions-left">
+      <button type="button" class="btn act-save" data-act="save">save &amp; next</button>
+      <button type="button" class="btn" data-act="clear">clear response</button>
+      <button type="button" class="btn act-mark" data-act="marksave">save &amp; mark for review</button>
+      <button type="button" class="btn act-review" data-act="review"{revcls}>mark for review &amp; next</button>
+    </div>
+    <div class="exam-actions-right">
+      <button type="button" class="btn" data-act="prev"{prevdis}>‹ back</button>
+      <button type="button" class="btn" data-act="next">next ›</button>
+      <button class="btn primary" type="submit">submit</button>
+    </div>
   </div>
 </section>"#,
                 hidden = if i == 0 { "" } else { " hidden" },
+                rev0 = if rev { "1" } else { "0" },
                 prevdis = if i == 0 { " disabled" } else { "" },
                 revcls = if rev { " danger" } else { "" },
-                total = questions.len(),
                 n = i + 1,
                 subj = esc(&q.subject),
                 ch = esc(&q.chapter),
-                qt = esc(&q.qtype),
-                revflag = if rev { " · <span class=\"warn-t\">marked</span>" } else { "" },
+                qtword = if q.qtype == "NUM" { "numerical" } else { "single correct" },
+                revflag = format!(" · <span class=\"warn-t mflag\"{h}>marked</span>", h = if rev { "" } else { " hidden" }),
                 stem = rich(&q.stem),
+                qopts = if q.qtype == "NUM" {
+                    String::new()
+                } else {
+                    // Read-only option text inside the white card (mirrors the
+                    // typeset block; the pills below are the click targets).
+                    let items: String = ["A", "B", "C", "D"]
+                        .iter()
+                        .enumerate()
+                        .map(|(k, _letter)| {
+                            format!(
+                                "<p>({n}) {t}</p>",
+                                n = k + 1,
+                                t = rich(&q.opts[k]),
+                            )
+                        })
+                        .collect();
+                    items
+                },
                 sub2 = esc(&q.subtopic),
                 year = q.year,
                 shift = esc(&q.shift),
@@ -886,6 +911,11 @@ pub fn attempt(ctx: &Ctx, user: &str, attempt_id: &str, questions: &[Question], 
         r#"<div class="exam-bar">
   <div class="exam-bar-inner">
     <div class="exam-title"><b>{title}</b><span class="dim" id="exam-progress">{n} questions</span></div>
+    <div class="exam-cand">
+      <span class="dim">candidate</span>
+      <b>{user}</b>
+      <span class="saved dim" id="save-dot" title="autosave state"></span>
+    </div>
     <div class="exam-clock"><span class="dim">time left</span><div class="timer" id="timer" data-secs="{secs}" role="timer">{dur}</div></div>
   </div>
   <div class="exam-progress"><i id="exam-fill"></i></div>
@@ -896,12 +926,14 @@ pub fn attempt(ctx: &Ctx, user: &str, attempt_id: &str, questions: &[Question], 
   <div>{qs}</div>
   <aside class="cbt-side" id="pal-wrap">
     <h2>palette</h2>
-    <div class="palette" id="pal" aria-label="question palette">{pal}</div>
-    <ul class="legend">
-      <li><i class="sw ans"></i>answered</li>
-      <li><i class="sw rev"></i>review</li>
-      <li><i class="sw skip"></i>blank</li>
+    <ul class="pal-stats" id="pal-stats">
+      <li><i class="sw visit"></i>not visited <b data-c="visit">0</b></li>
+      <li><i class="sw skip"></i>not answered <b data-c="skip">0</b></li>
+      <li><i class="sw ans"></i>answered <b data-c="ans">0</b></li>
+      <li><i class="sw rev"></i>marked for review <b data-c="rev">0</b></li>
+      <li><i class="sw ansrev"></i>answered & marked <b data-c="ansrev">0</b></li>
     </ul>
+    <div class="palette" id="pal" aria-label="question palette">{pal}</div>
     <p class="cbt-count dim" id="cbt-count">0 answered</p>
     <button class="btn primary block" type="submit">submit paper</button>
     <button type="button" class="btn block" data-close-palette>close palette</button>
@@ -911,6 +943,7 @@ pub fn attempt(ctx: &Ctx, user: &str, attempt_id: &str, questions: &[Question], 
 </form>
 <script src="{b}/static/exam.js"></script>"#,
         title = esc(title),
+        user = esc(user),
         n = questions.len(),
         dur = fmt_dur(duration_min as i64 * 60),
         secs = duration_min * 60,
