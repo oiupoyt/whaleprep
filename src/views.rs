@@ -1081,6 +1081,15 @@ pub fn result(ctx: &Ctx, user: &str, attempt_id: &str, a: &Analysis, rows: &[Row
         .collect();
     let topic_buckets: Vec<Bucket> = a.by_topic.iter().map(|(b, _)| b.to_owned()).collect();
     let neg = rows.iter().filter(|r| !r.correct && !r.selected.trim().is_empty()).count() as i32;
+    // Encouragement line: tone follows the score, like the ZenithPrep modal.
+    let pct = fmt_pct(a.score, a.max_score);
+    let (enc_head, enc_body) = if pct >= 75 {
+        ("strong paper", "This score shows the chapters you chose are under control. Keep the mistakes tagged so the next paper skips what you already own.")
+    } else if pct >= 40 {
+        ("on the right track", "Half the battle is spotting which step broke. Tag the mistakes below and the next paper targets exactly those chapters.")
+    } else {
+        ("this is where progress starts", "A low score just maps the work. Tag each mistake below, then rebuild a paper from the weak chapters — the bank has enough PYQs to drill each one.")
+    };
     let body = format!(
         r##"<div class="result-layout">
 <nav class="result-nav" aria-label="result sections">
@@ -1101,6 +1110,10 @@ pub fn result(ctx: &Ctx, user: &str, attempt_id: &str, a: &Analysis, rows: &[Row
   <div class="card"><span class="dim">negative marks</span><b class="bad-t">−{neg}</b></div>
   <div class="card"><span class="dim">time used</span><b>{dur}</b></div>
 </div>
+<div class="card encourage" role="status">
+  <b>{eh}</b>
+  <p>{eb}</p>
+</div>
 <div id="r-subjects" class="grid2">
   <div class="card table-wrap"><h3>by subject</h3><table><thead><tr><th>subject</th><th>right</th><th>wrong</th><th>blank</th><th></th><th>%</th><th></th></tr></thead><tbody>{subj}</tbody></table></div>
   <div id="r-difficulty" class="card table-wrap"><h3>by difficulty</h3><table><thead><tr><th>difficulty</th><th>right</th><th>wrong</th><th>blank</th><th></th><th>%</th><th></th></tr></thead><tbody>{diff}</tbody></table></div>
@@ -1119,6 +1132,8 @@ pub fn result(ctx: &Ctx, user: &str, attempt_id: &str, a: &Analysis, rows: &[Row
         neg = neg,
         acc = accuracy(a.right, a.wrong),
         dur = fmt_dur(a.used_secs),
+        eh = enc_head,
+        eb = enc_body,
         subj = bucket_rows(&a.by_subject),
         diff = bucket_rows(&a.by_difficulty),
         topic = bucket_rows(&topic_buckets),

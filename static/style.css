@@ -1315,6 +1315,27 @@ footer {
   background: #ef4444;
 }
 
+/* Encouragement card under the overview stats */
+.card.encourage {
+  margin: 14px 0;
+  border-left: 3px solid #10b981;
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.08), transparent 60%);
+}
+
+.card.encourage b {
+  display: block;
+  font-size: 1rem;
+  margin-bottom: 4px;
+  color: #ffffff;
+}
+
+.card.encourage p {
+  margin: 0;
+  color: var(--text-dim);
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
+
 /* Result page: sticky left nav + main column (ZenithPrep style) */
 .result-layout {
   display: grid;
