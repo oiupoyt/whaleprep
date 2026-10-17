@@ -1290,13 +1290,14 @@ pub fn dashboard(ctx: &Ctx, user: &str, tests: &[TestRow], weak: &[(Bucket, Stri
         .iter()
         .map(|(b, chapter, subtopic)| {
             format!(
-                r#"<tr><td>{sub} <span class="dim">· {ch}</span></td><td>{t}</td><td>{w}</td><td>{s}</td><td>{seg}</td><td class="{st}">{st}</td></tr>"#,
+                r#"<tr><td>{sub} <span class="dim">· {ch}</span></td><td>{t}</td><td>{w}</td><td>{s}</td><td style="width:38%">{seg}</td><td>{p}%</td><td class="{st}">{st}</td></tr>"#,
                 sub = esc(subtopic),
                 ch = esc(chapter),
                 t = b.total(),
                 w = b.wrong,
                 s = b.skipped,
                 seg = seg(b),
+                p = b.pct(),
                 st = b.status()
             )
         })
@@ -1348,7 +1349,7 @@ pub fn dashboard(ctx: &Ctx, user: &str, tests: &[TestRow], weak: &[(Bucket, Stri
 </div>
 {trend}
 <h2>weakest subtopics across all papers</h2>
-<div class="card table-wrap"><table><thead><tr><th>subtopic</th><th>seen</th><th>wrong</th><th>blank</th><th></th><th></th></tr></thead><tbody>{weak}</tbody></table></div>
+<div class="card table-wrap"><table><thead><tr><th>subtopic</th><th>seen</th><th>wrong</th><th>blank</th><th></th><th>%</th><th></th></tr></thead><tbody>{weak}</tbody></table></div>
 {mistakes_html}
 <h2>coach notes</h2>
 <div class="card"><ul style="padding-left:18px;display:grid;gap:6px">{notes}</ul><p class="dim" style="margin-top:10px">Written from your own submitted papers. No data leaves this machine.</p></div>
