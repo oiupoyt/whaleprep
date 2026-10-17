@@ -107,7 +107,7 @@ fn head(ctx: &Ctx, title: &str) -> String {
 <title>{t} · WhalePrep</title>
 <link rel="icon" type="image/png" href="{b}/static/favicon.png?v=3">
 <link rel="apple-touch-icon" href="{b}/static/apple-touch-icon.png?v=3">
-<link rel="stylesheet" href="{b}/static/style.css">
+<link rel="stylesheet" href="{b}/static/style.css?v=4">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
@@ -941,7 +941,7 @@ pub fn attempt(ctx: &Ctx, user: &str, attempt_id: &str, questions: &[Question], 
 </div>
 <button type="button" class="btn pal-fab" id="pal-toggle" aria-expanded="false" aria-controls="pal-wrap">palette <span id="pal-fab-count"></span></button>
 </form>
-<script src="{b}/static/exam.js"></script>"#,
+<script src="{b}/static/exam.js?v=4"></script>"#,
         title = esc(title),
         user = esc(user),
         n = questions.len(),
