@@ -1028,8 +1028,13 @@ fn bucket_rows(items: &[Bucket]) -> String {
         .collect()
 }
 
-pub fn result(ctx: &Ctx, user: &str, _attempt_id: &str, a: &Analysis, rows: &[RowView]) -> String {
+pub fn result(ctx: &Ctx, user: &str, attempt_id: &str, a: &Analysis, rows: &[RowView]) -> String {
     let base = ctx.base.clone();
+    let mistakes_pending = rows
+        .iter()
+        .filter(|r| !r.correct && r.tags.is_empty())
+        .count();
+    let title = format!("practice paper · {attempt_id}");
     let detail: String = rows
         .iter()
         .enumerate()
@@ -1075,36 +1080,50 @@ pub fn result(ctx: &Ctx, user: &str, _attempt_id: &str, a: &Analysis, rows: &[Ro
         })
         .collect();
     let topic_buckets: Vec<Bucket> = a.by_topic.iter().map(|(b, _)| b.to_owned()).collect();
+    let neg = rows.iter().filter(|r| !r.correct && !r.selected.trim().is_empty()).count() as i32;
     let body = format!(
-        r#"<h1>Result</h1>
-<div class="kv">
-  <div class="card"><span class="dim">score</span><b>{score} <span class="dim">/ {max}</span></b></div>
-  <div class="card"><span class="dim">percentage</span><b>{pct}%</b></div>
-  <div class="card"><span class="dim">accuracy</span><b class="ok-t">{acc}%</b></div>
-  <div class="card"><span class="dim">time used</span><b>{dur}</b></div>
-</div>
-<div class="grid2">
-  <div class="card table-wrap"><h3>by subject</h3><table><thead><tr><th>subject</th><th>right</th><th>wrong</th><th>blank</th><th></th><th>%</th><th></th></tr></thead><tbody>{subj}</tbody></table></div>
-  <div class="card table-wrap"><h3>by difficulty</h3><table><thead><tr><th>difficulty</th><th>right</th><th>wrong</th><th>blank</th><th></th><th>%</th><th></th></tr></thead><tbody>{diff}</tbody></table></div>
-</div>
-<h2>chapters that cost you marks</h2>
-<div class="card table-wrap"><table><thead><tr><th>subtopic</th><th>right</th><th>wrong</th><th>blank</th><th></th><th>%</th><th></th></tr></thead><tbody>{topic}</tbody></table></div>
-<h2>every question</h2>
-{detail}
-<p style="margin-top:18px;display:flex;gap:8px;flex-wrap:wrap">
+        r##"<div class="result-layout">
+<nav class="result-nav" aria-label="result sections">
+  <b>{title_}</b>
+  <a href="#r-overview">overview</a>
+  <a href="#r-subjects">subject-wise</a>
+  <a href="#r-difficulty">difficulty</a>
+  <a href="#r-chapters">chapters that cost you marks</a>
+  <a href="#r-questions">per-question analysis{mtag}</a>
   <a class="btn" href="{b}/history">all papers</a>
   <a class="btn" href="{b}/dashboard">dashboard</a>
-  <button class="btn" type="button" onclick="window.print()">print / PDF</button>
   <a class="btn primary" href="{b}/build">new paper</a>
-</p>"#,
+</nav>
+<div class="result-main">
+<div id="r-overview" class="kv">
+  <div class="card"><span class="dim">score</span><b>{score} <span class="dim">/ {max}</span></b></div>
+  <div class="card"><span class="dim">accuracy</span><b class="ok-t">{acc}%</b></div>
+  <div class="card"><span class="dim">negative marks</span><b class="bad-t">−{neg}</b></div>
+  <div class="card"><span class="dim">time used</span><b>{dur}</b></div>
+</div>
+<div id="r-subjects" class="grid2">
+  <div class="card table-wrap"><h3>by subject</h3><table><thead><tr><th>subject</th><th>right</th><th>wrong</th><th>blank</th><th></th><th>%</th><th></th></tr></thead><tbody>{subj}</tbody></table></div>
+  <div id="r-difficulty" class="card table-wrap"><h3>by difficulty</h3><table><thead><tr><th>difficulty</th><th>right</th><th>wrong</th><th>blank</th><th></th><th>%</th><th></th></tr></thead><tbody>{diff}</tbody></table></div>
+</div>
+<h2 id="r-chapters">chapters that cost you marks</h2>
+<div class="card table-wrap"><table><thead><tr><th>subtopic</th><th>right</th><th>wrong</th><th>blank</th><th></th><th>%</th><th></th></tr></thead><tbody>{topic}</tbody></table></div>
+<h2 id="r-questions">every question</h2>
+{detail}
+<p style="margin-top:18px;display:flex;gap:8px;flex-wrap:wrap">
+  <button class="btn" type="button" onclick="window.print()">print / PDF</button>
+</p>
+</div>
+</div>"##,
         score = a.score,
         max = a.max_score,
-        pct = fmt_pct(a.score, a.max_score),
+        neg = neg,
         acc = accuracy(a.right, a.wrong),
         dur = fmt_dur(a.used_secs),
         subj = bucket_rows(&a.by_subject),
         diff = bucket_rows(&a.by_difficulty),
         topic = bucket_rows(&topic_buckets),
+        mtag = if mistakes_pending > 0 { format!(r#" <span class="badge">{}</span>"#, mistakes_pending) } else { String::new() },
+        title_ = esc(&title),
         detail = detail,
         b = ctx.base
     );
