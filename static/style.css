@@ -1315,6 +1315,33 @@ footer {
   background: #ef4444;
 }
 
+/* Share box on the result page */
+.card.share-box {
+  margin: 14px 0;
+}
+
+.share-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+
+.share-row code {
+  flex: 1 1 240px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  font-size: 0.8rem;
+  color: #38bdf8;
+}
+
 /* Encouragement card under the overview stats */
 .card.encourage {
   margin: 14px 0;

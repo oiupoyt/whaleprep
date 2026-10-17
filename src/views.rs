@@ -1028,13 +1028,26 @@ fn bucket_rows(items: &[Bucket]) -> String {
         .collect()
 }
 
-pub fn result(ctx: &Ctx, user: &str, attempt_id: &str, a: &Analysis, rows: &[RowView]) -> String {
+pub fn result(ctx: &Ctx, user: &str, attempt_id: &str, share_token: &str, a: &Analysis, rows: &[RowView]) -> String {
     let base = ctx.base.clone();
     let mistakes_pending = rows
         .iter()
         .filter(|r| !r.correct && r.tags.is_empty())
         .count();
     let title = format!("practice paper · {attempt_id}");
+    // Share box mirrors the paper-preview page: link + copy button.
+    let share_box = if share_token.is_empty() {
+        String::new()
+    } else {
+        format!(
+            r##"<div class="card share-box"><h3>share this paper</h3>
+  <p class="meta">Send the question paper to a friend. Your answers and this score stay private.</p>
+  <div class="share-row"><code id="share-url">{b}/s/{tok}</code><button class="btn" type="button" data-copy="#share-url">copy link</button></div>
+</div>"##,
+            b = public_origin(),
+            tok = esc(share_token)
+        )
+    };
     let detail: String = rows
         .iter()
         .enumerate()
@@ -1114,6 +1127,7 @@ pub fn result(ctx: &Ctx, user: &str, attempt_id: &str, a: &Analysis, rows: &[Row
   <b>{eh}</b>
   <p>{eb}</p>
 </div>
+{share_box}
 <div id="r-subjects" class="grid2">
   <div class="card table-wrap"><h3>by subject</h3><table><thead><tr><th>subject</th><th>right</th><th>wrong</th><th>blank</th><th></th><th>%</th><th></th></tr></thead><tbody>{subj}</tbody></table></div>
   <div id="r-difficulty" class="card table-wrap"><h3>by difficulty</h3><table><thead><tr><th>difficulty</th><th>right</th><th>wrong</th><th>blank</th><th></th><th>%</th><th></th></tr></thead><tbody>{diff}</tbody></table></div>
@@ -1126,7 +1140,25 @@ pub fn result(ctx: &Ctx, user: &str, attempt_id: &str, a: &Analysis, rows: &[Row
   <button class="btn" type="button" onclick="window.print()">print / PDF</button>
 </p>
 </div>
-</div>"##,
+</div>
+<script>
+(function () {{
+  var btn = document.querySelector('[data-copy]');
+  if (!btn) return;
+  btn.addEventListener('click', function () {{
+    var el = document.querySelector(btn.dataset.copy);
+    var url = el ? el.textContent.trim() : '';
+    var done = function () {{ btn.textContent = 'copied'; setTimeout(function () {{ btn.textContent = 'copy link'; }}, 1500); }};
+    if (navigator.clipboard) navigator.clipboard.writeText(url).then(done, done);
+    else {{
+      var ta = document.createElement('textarea');
+      ta.value = url; document.body.appendChild(ta); ta.select();
+      try {{ document.execCommand('copy'); }} catch (e) {{}}
+      document.body.removeChild(ta); done();
+    }}
+  }});
+}})();
+</script>"##,
         score = a.score,
         max = a.max_score,
         neg = neg,
@@ -1134,6 +1166,7 @@ pub fn result(ctx: &Ctx, user: &str, attempt_id: &str, a: &Analysis, rows: &[Row
         dur = fmt_dur(a.used_secs),
         eh = enc_head,
         eb = enc_body,
+        share_box = share_box,
         subj = bucket_rows(&a.by_subject),
         diff = bucket_rows(&a.by_difficulty),
         topic = bucket_rows(&topic_buckets),

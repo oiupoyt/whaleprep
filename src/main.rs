@@ -492,6 +492,16 @@ async fn result_page(State(ctx): State<CtxArc>, h: HeaderMap, Path(attempt): Pat
         }
     };
     let a = analyse(&rows, score, max, used);
+    // Share link for the underlying paper (empty when the paper is gone).
+    let token: String = sqlx::query_scalar(
+        "SELECT p.share_token FROM papers p JOIN attempts a ON a.paper_id = p.id WHERE a.id=?",
+    )
+    .bind(&attempt)
+    .fetch_optional(&ctx.pool)
+    .await
+    .ok()
+    .flatten()
+    .unwrap_or_default();
     // Existing tags per question so the form shows current state.
     let tag_rows: Vec<(i64, String)> = sqlx::query_as(
         "SELECT question_id, tag FROM mistake_tags WHERE attempt_id=?",
@@ -519,7 +529,7 @@ async fn result_page(State(ctx): State<CtxArc>, h: HeaderMap, Path(attempt): Pat
             }
         })
         .collect();
-    hx(views::result(&ctx, &name, &attempt, &a, &rv), StatusCode::OK).into_response()
+    hx(views::result(&ctx, &name, &attempt, &token, &a, &rv), StatusCode::OK).into_response()
 }
 
 #[derive(serde::Deserialize)]
