@@ -1145,6 +1145,32 @@ footer {
   line-height: 1.7;
 }
 
+/* Question figures: local downloads in static/qimg (ZenithPrep .qimg style) */
+.qcard img,
+.stem img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 12px auto;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 8px;
+}
+
+@media (max-width: 720px) {
+  .qcard img,
+  .stem img {
+    cursor: zoom-in;
+  }
+  .qcard img.zoom,
+  .stem img.zoom {
+    max-width: none;
+    width: 220%;
+    cursor: zoom-out;
+  }
+}
+
 .qcard .katex {
   color: #111827;
 }
@@ -1210,6 +1236,29 @@ footer {
   flex: 1;
   min-width: 0;
   line-height: 1.5;
+}
+
+/* Images inside an option (organic structures, graphs): shrink to fit the pill */
+.opt-text img {
+  display: inline-block;
+  max-height: 120px;
+  max-width: 100%;
+  height: auto;
+  vertical-align: middle;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  padding: 4px;
+  margin: 2px 0;
+}
+
+/* Same for option text read out inside the white question card */
+.qcard .opt-readout img {
+  display: inline-block;
+  max-height: 140px;
+  max-width: 100%;
+  vertical-align: middle;
+  margin: 4px 4px 4px 0;
 }
 
 .opt p {

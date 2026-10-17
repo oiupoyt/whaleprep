@@ -3,3 +3,6 @@
 whaleprep.db*
 *.pid
 *.log
+
+# Question figures: 200MB of WebP/SVG, deployed by rsync not git
+/static/qimg/

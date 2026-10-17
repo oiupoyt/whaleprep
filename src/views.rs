@@ -25,14 +25,25 @@ pub fn rich(s: &str) -> String {
     const ALLOWED: &[&str] = &[
         "br", "p", "sup", "sub", "b", "strong", "i", "em", "u", "ol", "ul",
         "li", "table", "tbody", "thead", "tr", "th", "td", "span",
-    ];
-    // A `<` only starts a tag when followed by a letter, `/`, `!` or `?`
+    ];    // A `<` only starts a tag when followed by a letter, `/`, `!` or `?`
     // (i.e. `<p>`, `</p>`, `<!--`, `<?`). A `<` followed by a space, digit,
     // `=` or end-of-string is literal math text (`\(a < 0\)`) and must be
     // escaped, not parsed as a tag — otherwise the sanitizer eats the `<`
     // and its content, unbalancing the KaTeX delimiters downstream.
     fn is_tag_start(after_lt: &str) -> bool {
         matches!(after_lt.chars().next(), Some('a'..='z' | 'A'..='Z' | '/' | '!' | '?'))
+    }
+    // img is allowed only when its src points at our local question-image
+    // directory; remote URLs are dropped to keep the bank self-contained
+    // and close the sanitizer to outside hosts.
+    fn safe_img(inner: &str) -> bool {
+        let src_ok = inner
+            .split("src=\"")
+            .nth(1)
+            .and_then(|rest| rest.split('"').next())
+            .map(|src| src.starts_with("/static/qimg/"))
+            .unwrap_or(false);
+        src_ok && !inner.contains("on")
     }
     let mut o = String::with_capacity(s.len());
     let mut rest = s;
@@ -58,17 +69,26 @@ pub fn rich(s: &str) -> String {
                 None => (false, inner.split_whitespace().next().unwrap_or("")),
             };
             let name = name.trim_end_matches('/').to_ascii_lowercase();
-            let has_attrs = inner.contains(char::is_whitespace) && !inner.ends_with('/');
-            if !has_attrs && ALLOWED.contains(&name.as_str()) {
+            if name == "img" && !closing && safe_img(inner) {
+                // keep the sanitized local image tag verbatim
                 o.push('<');
-                if closing {
-                    o.push('/');
-                }
-                o.push_str(&name);
-                if !closing && inner.ends_with('/') {
-                    o.push('/');
-                }
+                o.push_str(inner);
                 o.push('>');
+            } else if name == "img" {
+                // remote or unsafe img: drop the tag, keep nothing
+            } else {
+                let has_attrs = inner.contains(char::is_whitespace) && !inner.ends_with('/');
+                if !has_attrs && ALLOWED.contains(&name.as_str()) {
+                    o.push('<');
+                    if closing {
+                        o.push('/');
+                    }
+                    o.push_str(&name);
+                    if !closing && inner.ends_with('/') {
+                        o.push('/');
+                    }
+                    o.push('>');
+                }
             }
             rest = &after[end + 1..];
         } else {
@@ -176,7 +196,18 @@ fn nav(ctx: &Ctx, user: Option<&str>) -> String {
 
 fn foot(ctx: &Ctx) -> String {
     format!(
-        r#"<footer><span>WhalePrep · JEE Main PYQ practice</span><span><a href="{b}/terms">terms</a> · <a href="{b}/privacy">privacy</a></span></footer></body></html>"#,
+        r#"<footer><span>WhalePrep · JEE Main PYQ practice</span><span><a href="{b}/terms">terms</a> · <a href="{b}/privacy">privacy</a></span></footer>
+<script>
+(function () {{
+  // Tap a question figure to enlarge it on small screens (ZenithPrep .qimg.zoom).
+  if (!matchMedia('(max-width: 720px)').matches) return;
+  document.addEventListener('click', function (e) {{
+    var img = e.target.closest('.qcard img, .stem img');
+    if (img) img.classList.toggle('zoom');
+  }});
+}})();
+</script>
+</body></html>"#,
         b = ctx.base
     )
 }
@@ -870,7 +901,7 @@ pub fn attempt(ctx: &Ctx, user: &str, attempt_id: &str, questions: &[Question], 
                         .enumerate()
                         .map(|(k, _letter)| {
                             format!(
-                                "<p>({n}) {t}</p>",
+                                "<p class=\"opt-readout\">({n}) {t}</p>",
                                 n = k + 1,
                                 t = rich(&q.opts[k]),
                             )
@@ -1490,5 +1521,25 @@ mod rich_tests {
     fn stray_lt_at_end_escaped() {
         let out = rich("a < b and c <");
         assert_eq!(out, "a &lt; b and c &lt;");
+    }
+
+    #[test]
+    fn local_question_image_survives() {
+        let out = rich(r#"see figure <img src="/static/qimg/abc-123.png"> below"#);
+        assert!(out.contains(r#"<img src="/static/qimg/abc-123.png">"#), "local img must pass: {out}");
+    }
+
+    #[test]
+    fn remote_image_dropped() {
+        let out = rich(r#"x <img src="https://evil.example/x.png"> y"#);
+        assert!(!out.contains("<img"), "remote img must be dropped: {out}");
+        assert!(out.contains("x") && out.contains("y"), "text around it stays: {out}");
+    }
+
+    #[test]
+    fn img_with_event_handler_dropped() {
+        let out = rich(r#"<img src="/static/qimg/a.png" onerror="alert(1)">"#);
+        assert!(!out.contains("onerror"), "handlers must go: {out}");
+        assert!(!out.contains("<img"), "unsafe img must go entirely: {out}");
     }
 }
