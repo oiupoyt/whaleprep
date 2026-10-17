@@ -15,9 +15,23 @@
   for (const p of panes) {
     const box = p.querySelector('input');
     if (box) entered.set(p.dataset.i, Number(box.dataset.t || 0));
-  }
-  const visited = new Set();
+  }  const visited = new Set();
   const saveDot = document.getElementById('save-dot');
+
+  // Per-question stopwatch: accrues only while the pane is on screen, so
+  // time spent elsewhere never counts against a question.
+  let tickPid = null;
+  function startTick(pane) {
+    if (tickPid) clearInterval(tickPid);
+    const key = pane.dataset.i;
+    tickPid = setInterval(() => {
+      entered.set(key, Number(entered.get(key) || 0) + 1);
+    }, 1000);
+  }
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden && tickPid) clearInterval(tickPid);
+    else if (!document.hidden) startTick(panes[cur]);
+  });
 
   function questionId(pane) {
     const radios = [...pane.querySelectorAll('input[type=radio]')];
@@ -58,6 +72,7 @@
     // A pane change on a phone must start the question at the top, not halfway down.
     panes[cur].scrollIntoView({ block: 'nearest' });
     history.replaceState(null, '', '#q' + (cur + 1));
+    startTick(panes[cur]);
     paintProgress();
   }
 

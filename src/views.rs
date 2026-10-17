@@ -941,7 +941,7 @@ pub fn attempt(ctx: &Ctx, user: &str, attempt_id: &str, questions: &[Question], 
 </div>
 <button type="button" class="btn pal-fab" id="pal-toggle" aria-expanded="false" aria-controls="pal-wrap">palette <span id="pal-fab-count"></span></button>
 </form>
-<script src="{b}/static/exam.js?v=4"></script>"#,
+<script src="{b}/static/exam.js?v=5"></script>"#,
         title = esc(title),
         user = esc(user),
         n = questions.len(),
@@ -1094,6 +1094,55 @@ pub fn result(ctx: &Ctx, user: &str, attempt_id: &str, share_token: &str, a: &An
         .collect();
     let topic_buckets: Vec<Bucket> = a.by_topic.iter().map(|(b, _)| b.to_owned()).collect();
     let neg = rows.iter().filter(|r| !r.correct && !r.selected.trim().is_empty()).count() as i32;
+    // Time analysis: where the clock went, from per-question times.
+    let avg_for = |filt: &dyn Fn(&RowView) -> bool| -> String {
+        let pick: Vec<i64> = rows.iter().filter(|r| filt(r) && r.time_secs > 0).map(|r| r.time_secs).collect();
+        if pick.is_empty() { "—".into() } else { format!("{}s", pick.iter().sum::<i64>() / pick.len() as i64) }
+    };
+    let timed: Vec<(usize, &RowView)> = rows
+        .iter()
+        .enumerate()
+        .filter(|(_, r)| r.time_secs > 0)
+        .collect();
+    let time_table = if timed.is_empty() {
+        String::new()
+    } else {
+        let time_row = |(i, r): &(usize, &RowView)| {
+            let cls = if r.correct { "ok-t" } else if r.selected.trim().is_empty() { "dim" } else { "bad-t" };
+            format!(
+                r#"<tr><td>q{n}</td><td class="{cls}">{sub}</td><td>{t}s</td></tr>"#,
+                n = i + 1,
+                cls = cls,
+                sub = esc(&r.q.subtopic),
+                t = r.time_secs
+            )
+        };
+        let mut sorted = timed.clone();
+        sorted.sort_by_key(|(_, r)| r.time_secs);
+        let fast: String = sorted.iter().take(3).map(time_row).collect();
+        let mut slowest = sorted.clone();
+        slowest.reverse();
+        let slow: String = slowest.iter().take(3).map(time_row).collect();
+        format!(
+            r##"<h2 id="r-time">time analysis</h2>
+<div class="grid2">
+  <div class="card table-wrap"><h3>average per outcome</h3><table><thead><tr><th>outcome</th><th>avg time</th></tr></thead><tbody>
+    <tr><td class="ok-t">right</td><td>{rt}</td></tr>
+    <tr><td class="bad-t">wrong</td><td>{wt}</td></tr>
+    <tr><td class="dim">blank</td><td>{bt}</td></tr>
+  </tbody></table></div>
+  <div class="grid2">
+    <div class="card table-wrap"><h3>fastest</h3><table><thead><tr><th></th><th>subtopic</th><th></th></tr></thead><tbody>{fast}</tbody></table></div>
+    <div class="card table-wrap"><h3>slowest</h3><table><thead><tr><th></th><th>subtopic</th><th></th></tr></thead><tbody>{slow}</tbody></table></div>
+  </div>
+</div>"##,
+            rt = avg_for(&|r| r.correct),
+            wt = avg_for(&|r| !r.correct && !r.selected.trim().is_empty()),
+            bt = avg_for(&|r| r.selected.trim().is_empty()),
+            fast = fast,
+            slow = slow
+        )
+    };
     // Encouragement line: tone follows the score, like the ZenithPrep modal.
     let pct = fmt_pct(a.score, a.max_score);
     let (enc_head, enc_body) = if pct >= 75 {
@@ -1111,6 +1160,7 @@ pub fn result(ctx: &Ctx, user: &str, attempt_id: &str, share_token: &str, a: &An
   <a href="#r-subjects">subject-wise</a>
   <a href="#r-difficulty">difficulty</a>
   <a href="#r-chapters">chapters that cost you marks</a>
+  <a href="#r-time">time analysis</a>
   <a href="#r-questions">per-question analysis{mtag}</a>
   <a class="btn" href="{b}/history">all papers</a>
   <a class="btn" href="{b}/dashboard">dashboard</a>
@@ -1134,6 +1184,7 @@ pub fn result(ctx: &Ctx, user: &str, attempt_id: &str, share_token: &str, a: &An
 </div>
 <h2 id="r-chapters">chapters that cost you marks</h2>
 <div class="card table-wrap"><table><thead><tr><th>subtopic</th><th>right</th><th>wrong</th><th>blank</th><th></th><th>%</th><th></th></tr></thead><tbody>{topic}</tbody></table></div>
+{time_table}
 <h2 id="r-questions">every question</h2>
 {detail}
 <p style="margin-top:18px;display:flex;gap:8px;flex-wrap:wrap">
@@ -1170,6 +1221,7 @@ pub fn result(ctx: &Ctx, user: &str, attempt_id: &str, share_token: &str, a: &An
         subj = bucket_rows(&a.by_subject),
         diff = bucket_rows(&a.by_difficulty),
         topic = bucket_rows(&topic_buckets),
+        time_table = time_table,
         mtag = if mistakes_pending > 0 { format!(r#" <span class="badge">{}</span>"#, mistakes_pending) } else { String::new() },
         title_ = esc(&title),
         detail = detail,
