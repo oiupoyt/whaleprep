@@ -17,6 +17,23 @@ pub fn esc(s: &str) -> String {
     o
 }
 
+/// Strip HTML/math to a short plain string, for title attributes.
+fn plain(s: &str) -> String {
+    let mut out = s.replace("$$", " ").replace("\\(", " ").replace("\\)", " ");
+    loop {
+        match out.find('<') {
+            Some(i) => match out[i..].find('>') {
+                Some(j) => {
+                    out.replace_range(i..i + j + 1, "");
+                }
+                None => break,
+            },
+            None => break,
+        }
+    }
+    out.chars().take(80).collect()
+}
+
 /// Render question body HTML stored in the DB. The importer sanitizes at write
 /// time; this re-sanitizes on read so a hand-edited row can never inject a
 /// script. Only the sanitizer's allowlist survives — see
@@ -465,7 +482,22 @@ pub fn build(ctx: &Ctx, user: &str, blocks: Vec<SubjectBlock>, _form: &BuildForm
     let body = format!(
         r#"<div class="zp-builder-page">
   <h1 class="zp-page-title">Prepare a JEE Main test</h1>
-  <p class="zp-page-subtitle">Build a paper from the chapters you choose. {available} authentic JEE Main PYQs in the bank.</p>
+  <p class="zp-page-subtitle">Build your own paper from the chapters you choose, or take an actual JEE Main paper year by year. {available} authentic PYQs in the bank.</p>
+
+  <!-- Mode cards -->
+  <div class="zp-mode-cards">
+    <div class="zp-mode-card active" id="mode-build">
+      <b>Build your own paper</b>
+      <span>Chapters you choose, or the complete syllabus</span>
+    </div>
+    <div class="zp-mode-card" id="mode-past">
+      <b>Previous year paper</b>
+      <span>An actual JEE Main paper: pick the year and shift</span>
+    </div>
+  </div>
+
+  <button type="button" class="zp-complete-btn" id="btn-complete-syllabus">complete syllabus</button>
+  <p class="zp-complete-hint">Selects every chapter in all three subjects. You can still remove any you don't want.</p>
 
   <!-- Subject Filter Pills -->
   <div class="zp-subject-pills-bar">
@@ -498,6 +530,7 @@ pub fn build(ctx: &Ctx, user: &str, blocks: Vec<SubjectBlock>, _form: &BuildForm
     </div>
   </div>
 
+  <div class="zp-two-col">
   <form method="post" action="{b}/build" id="build-form">
     <input type="hidden" name="chapters" id="chapters" value="">
     <input type="hidden" name="subtopics" id="subtopics" value="">
@@ -509,84 +542,60 @@ pub fn build(ctx: &Ctx, user: &str, blocks: Vec<SubjectBlock>, _form: &BuildForm
     <div class="zp-chapters-container">
       {picker}
     </div>
-
-    <!-- Bottom Filter Box (DIFFICULTY & YEARS) -->
-    <div class="zp-filter-box">
-      <div class="zp-filter-sec">
-        <span class="zp-filter-heading">DIFFICULTY</span>
-        <div class="zp-pill-row" id="diff-row">
-          <label class="zp-filter-pill active">
-            <input type="checkbox" class="diff-chk" value="Easy" checked>
-            
-            <span>Easy</span>
-          </label>
-          <label class="zp-filter-pill active">
-            <input type="checkbox" class="diff-chk" value="Medium" checked>
-            
-            <span>Medium</span>
-          </label>
-          <label class="zp-filter-pill active">
-            <input type="checkbox" class="diff-chk" value="Hard" checked>
-            
-            <span>Hard</span>
-          </label>
-        </div>
-      </div>
-
-      <div class="zp-filter-sec" style="margin-top:20px">
-        <span class="zp-filter-heading">YEARS</span>
-        <div class="zp-pill-row" id="year-row">
-          <label class="zp-filter-pill active"><input type="checkbox" class="year-chk" value="2020" checked><span>2020</span></label>
-          <label class="zp-filter-pill active"><input type="checkbox" class="year-chk" value="2021" checked><span>2021</span></label>
-          <label class="zp-filter-pill active"><input type="checkbox" class="year-chk" value="2022" checked><span>2022</span></label>
-          <label class="zp-filter-pill active"><input type="checkbox" class="year-chk" value="2023" checked><span>2023</span></label>
-          <label class="zp-filter-pill active"><input type="checkbox" class="year-chk" value="2024" checked><span>2024</span></label>
-          <label class="zp-filter-pill active"><input type="checkbox" class="year-chk" value="2025" checked><span>2025</span></label>
-          <label class="zp-filter-pill"><input type="checkbox" class="year-chk" value="2019"><span>2019</span></label>
-          <label class="zp-filter-pill"><input type="checkbox" class="year-chk" value="2018"><span>2018</span></label>
-        </div>
-      </div>
-    </div>
-
-    <!-- Paper Settings & Start Bar -->
-    <div class="zp-settings-bar">
-      <div class="zp-settings-row">
-        <div class="zp-setting-item">
-          <label class="zp-setting-label">Questions</label>
-          <input type="number" id="count-input" name="count" value="30" min="5" max="75" style="width:110px">
-        </div>
-
-        <div class="zp-setting-item">
-          <label class="zp-toggle-label">
-            <input type="checkbox" id="jee-mode" checked>
-            <span>JEE Main 60-min timer per subject</span>
-          </label>
-          <label class="zp-toggle-label" style="margin-top:6px">
-            <input type="checkbox" name="unseen_only" checked>
-            <span>Unseen questions only</span>
-          </label>
-        </div>
-
-        <div class="zp-setting-item" id="dur-box" hidden>
-          <label class="zp-setting-label" for="duration">Duration (Minutes)</label>
-          <input type="number" id="duration" name="duration" value="60" min="5" max="180">
-        </div>
-      </div>
-
-      {e}
-
-      <div class="zp-submit-row">
-        <div class="zp-summary-text" id="zp-summary">
-          <b>0 chapters selected</b>
-          <span class="dim" id="zp-pool-estimate">Pick chapters above</span>
-        </div>
-        <button type="submit" class="zp-btn-start" id="submit-btn" disabled>
-          <span>Start Practice Paper</span>
-          <span class="zp-btn-desc" id="btn-desc">Select topics to begin</span>
-        </button>
-      </div>
-    </div>
   </form>
+
+  <!-- Right sticky sidebar -->
+  <aside class="zp-side-panel">
+    <div class="zp-filter-sec">
+      <span class="zp-filter-heading">DIFFICULTY</span>
+      <div class="zp-pill-row" id="diff-row">
+        <label class="zp-filter-pill active"><input type="checkbox" class="diff-chk" value="Easy" checked><span>Easy</span></label>
+        <label class="zp-filter-pill active"><input type="checkbox" class="diff-chk" value="Medium" checked><span>Medium</span></label>
+        <label class="zp-filter-pill active"><input type="checkbox" class="diff-chk" value="Hard" checked><span>Hard</span></label>
+      </div>
+    </div>
+    <div class="zp-filter-sec">
+      <span class="zp-filter-heading">YEARS</span>
+      <div class="zp-pill-row" id="year-row">
+        <label class="zp-filter-pill active"><input type="checkbox" class="year-chk" value="2020" checked><span>2020</span></label>
+        <label class="zp-filter-pill active"><input type="checkbox" class="year-chk" value="2021" checked><span>2021</span></label>
+        <label class="zp-filter-pill active"><input type="checkbox" class="year-chk" value="2022" checked><span>2022</span></label>
+        <label class="zp-filter-pill active"><input type="checkbox" class="year-chk" value="2023" checked><span>2023</span></label>
+        <label class="zp-filter-pill active"><input type="checkbox" class="year-chk" value="2024" checked><span>2024</span></label>
+        <label class="zp-filter-pill active"><input type="checkbox" class="year-chk" value="2025" checked><span>2025</span></label>
+      </div>
+    </div>
+    <div class="zp-filter-sec">
+      <span class="zp-filter-heading">YOUR PAPER</span>
+      <div id="zp-pool-quotas"></div>
+      <div class="zp-summary-text" id="zp-summary">
+        <b>0 chapters selected</b>
+        <span class="dim" id="zp-pool-estimate">Pick chapters above</span>
+      </div>
+      <div class="zp-setting-item">
+        <label class="zp-setting-label">Questions</label>
+        <input type="number" id="count-input" name="count" value="30" min="5" max="75" style="width:110px">
+      </div>
+      <label class="zp-toggle-label">
+        <input type="checkbox" id="jee-mode" checked>
+        <span>JEE Main 60-min timer per subject</span>
+      </label>
+      <label class="zp-toggle-label" style="margin-top:6px">
+        <input type="checkbox" name="unseen_only" checked>
+        <span>Unseen questions only</span>
+      </label>
+      <div class="zp-setting-item" id="dur-box" hidden>
+        <label class="zp-setting-label" for="duration">Duration (Minutes)</label>
+        <input type="number" id="duration" name="duration" value="60" min="5" max="180">
+      </div>
+      {e}
+      <button type="submit" form="build-form" class="zp-btn-start" id="submit-btn" disabled>
+        <span>Start Practice Paper</span>
+        <span class="zp-btn-desc" id="btn-desc">Select topics to begin</span>
+      </button>
+    </div>
+  </aside>
+  </div>  </form>
 </div>
 
 <script>
@@ -606,6 +615,20 @@ pub fn build(ctx: &Ctx, user: &str, blocks: Vec<SubjectBlock>, _form: &BuildForm
   const poolEstimate = document.getElementById('zp-pool-estimate');
   const btnDesc = document.getElementById('btn-desc');
   const searchInput = document.getElementById('zp-search-input');
+
+  // 0. Complete syllabus: check every chapter across all subjects
+  const completeBtn = document.getElementById('btn-complete-syllabus');
+  if (completeBtn) {{
+    completeBtn.addEventListener('click', () => {{
+      document.querySelectorAll('.chap').forEach(c => {{
+        c.checked = true;
+        c.indeterminate = false;
+        const item = c.closest('.zp-chapter-item');
+        item.querySelectorAll('.subtopic').forEach(st => st.checked = true);
+      }});
+      sync();
+    }});
+  }}
 
   // 1. Subject Switcher Pills (Mathematics, Physics, Chemistry)
   document.querySelectorAll('.zp-subj-pill').forEach(pill => {{
@@ -776,9 +799,25 @@ pub fn build(ctx: &Ctx, user: &str, blocks: Vec<SubjectBlock>, _form: &BuildForm
 
     // Calculate pool
     let pool = 0;
+    const perSubj = {{ Maths: 0, Physics: 0, Chemistry: 0 }};
     checkedChaps.forEach(c => {{
-      pool += Number(c.dataset.count || 0);
+      const n = Number(c.dataset.count || 0);
+      pool += n;
+      perSubj[c.dataset.subj] = (perSubj[c.dataset.subj] || 0) + n;
     }});
+
+    // ZenithPrep-style quota badges: 20/20 MCQ + 5/5 num per subject
+    const quotas = document.getElementById('zp-pool-quotas');
+    if (quotas) {{
+      quotas.innerHTML = ['Maths', 'Physics', 'Chemistry']
+        .filter(s => (document.querySelectorAll(`.chap:checked[data-subj="${{s}}"]`).length > 0))
+        .map(s => {{
+          const n = perSubj[s] || 0;
+          const mcq = Math.min(20, n);
+          const num = Math.min(5, Math.max(0, n - 20));
+          return `<div class="zp-quota-row"><span>${{s === 'Maths' ? 'Mathematics' : s}}</span><span class="zp-quota-badges"><span class="zp-quota-badge">${{mcq}}/20 MCQ</span><span class="zp-quota-badge">${{num}}/5 num</span></span></div>`;
+        }}).join('');
+    }}
 
     const nChapters = checkedChaps.length;
     const qCount = countField.value || 30;
@@ -808,22 +847,35 @@ pub fn build(ctx: &Ctx, user: &str, blocks: Vec<SubjectBlock>, _form: &BuildForm
 }
 
 fn palette(questions: &[Question], answers: &[(i64, String, bool)]) -> String {
-    questions
-        .iter()
-        .enumerate()
-        .map(|(i, q)| {
-            let a = answers.iter().find(|(id, _, _)| *id == q.id);
-            let sel = a.map(|(_, s, _)| !s.trim().is_empty()).unwrap_or(false);
-            let rev = a.map(|(_, _, r)| *r).unwrap_or(false);
-            let cls = match (sel, rev) {
-                (true, true) => "pal ansrev",
-                (true, false) => "pal ans",
-                _ => "pal",
-            };
-            format!(r#"<button type="button" class="{cls}" data-jump="{i}">{n}</button>"#, cls = cls, n = i + 1)
-        })
-        .collect::<Vec<_>>()
-        .join("")
+    // ZenithPrep groups the palette by subject + section (A = MCQ, B = NUM),
+    // each with its own header and grid.
+    let mut out = String::new();
+    let mut last_key: Option<(&str, &str)> = None;
+    for (i, q) in questions.iter().enumerate() {
+        let key = (q.subject.as_str(), q.qtype.as_str());
+        if last_key != Some(key) {
+            let sec = if q.qtype == "NUM" { "SECTION B" } else { "SECTION A" };
+            out.push_str(&format!(
+                r#"<div class="pal-sechead">{subj} · {sec}</div>"#,
+                subj = esc(&q.subject),
+            ));
+            last_key = Some(key);
+        }
+        let a = answers.iter().find(|(id, _, _)| *id == q.id);
+        let sel = a.map(|(_, s, _)| !s.trim().is_empty()).unwrap_or(false);
+        let rev = a.map(|(_, _, r)| *r).unwrap_or(false);
+        let cls = match (sel, rev) {
+            (true, true) => "pal ansrev",
+            (true, false) => "pal ans",
+            _ => "pal",
+        };
+        out.push_str(&format!(
+            r#"<button type="button" class="{cls}" data-jump="{i}">{n}</button>"#,
+            cls = cls,
+            n = i + 1
+        ));
+    }
+    out
 }
 
 pub fn attempt(ctx: &Ctx, user: &str, attempt_id: &str, questions: &[Question], answers: &[(i64, String, bool)], duration_min: i64, title: &str) -> String {
@@ -847,13 +899,17 @@ pub fn attempt(ctx: &Ctx, user: &str, attempt_id: &str, questions: &[Question], 
                     .map(|(k, letter)| {
                         let text = q.opts[k].clone();
                         let checked = if sel.trim().eq_ignore_ascii_case(letter) { " checked" } else { "" };
+                        // Compact ZenithPrep-style radio pill: the option text
+                        // already sits inside the white card; the pill only
+                        // carries the hollow radio + (1)..(4) label.
                         format!(
-                            r#"<label class="opt{cls}"><input type="radio" name="q-{id}" value="{letter}"{checked}><span class="opt-letter">{letter}</span><span class="opt-text">{t}</span></label>"#,
+                            r#"<label class="opt{cls}" title="{title}"><input type="radio" name="q-{id}" value="{letter}"{checked}><span class="opt-letter">{n}</span></label>"#,
                             cls = if sel.trim().eq_ignore_ascii_case(letter) { " sel" } else { "" },
+                            title = esc(&plain(&text)),
                             id = q.id,
                             letter = letter,
                             checked = checked,
-                            t = rich(&text)
+                            n = k + 1
                         )
                     })
                     .collect()
@@ -945,7 +1001,7 @@ pub fn attempt(ctx: &Ctx, user: &str, attempt_id: &str, questions: &[Question], 
     <div class="exam-cand">
       <span class="dim">candidate</span>
       <b>{user}</b>
-      <span class="saved dim" id="save-dot" title="autosave state"></span>
+      <span class="save-state" id="save-state">answers saved</span>
     </div>
     <div class="exam-clock"><span class="dim">time left</span><div class="timer" id="timer" data-secs="{secs}" role="timer">{dur}</div></div>
   </div>
@@ -1059,6 +1115,27 @@ fn bucket_rows(items: &[Bucket]) -> String {
         .collect()
 }
 
+/// "Chapter › Subtopic" rows for the chapters-that-cost-you-marks table,
+/// with the chapter as a cyan link like ZenithPrep.
+fn topic_rows(items: &[(Bucket, String)]) -> String {
+    items
+        .iter()
+        .map(|(b, chapter)| {
+            format!(
+                r#"<tr><td><span class="chap-link">{ch}</span> › {sub}</td><td>{r}</td><td>{w}</td><td>{s}</td><td style="width:38%">{seg}</td><td>{p}%</td><td class="{st}">{st}</td></tr>"#,
+                ch = esc(chapter),
+                sub = esc(&b.label),
+                r = b.right,
+                w = b.wrong,
+                s = b.skipped,
+                seg = seg(b),
+                p = b.pct(),
+                st = b.status()
+            )
+        })
+        .collect()
+}
+
 pub fn result(ctx: &Ctx, user: &str, attempt_id: &str, share_token: &str, a: &Analysis, rows: &[RowView]) -> String {
     let base = ctx.base.clone();
     let mistakes_pending = rows
@@ -1123,7 +1200,6 @@ pub fn result(ctx: &Ctx, user: &str, attempt_id: &str, share_token: &str, a: &An
             )
         })
         .collect();
-    let topic_buckets: Vec<Bucket> = a.by_topic.iter().map(|(b, _)| b.to_owned()).collect();
     let neg = rows.iter().filter(|r| !r.correct && !r.selected.trim().is_empty()).count() as i32;
     // Time analysis: where the clock went, from per-question times.
     let avg_for = |filt: &dyn Fn(&RowView) -> bool| -> String {
@@ -1186,35 +1262,38 @@ pub fn result(ctx: &Ctx, user: &str, attempt_id: &str, share_token: &str, a: &An
     let body = format!(
         r##"<div class="result-layout">
 <nav class="result-nav" aria-label="result sections">
-  <b>{title_}</b>
+  <b>test analysis</b>
+  <span class="dim nav-meta">{user} · {title_}</span>
   <a href="#r-overview">overview</a>
-  <a href="#r-subjects">subject-wise</a>
-  <a href="#r-difficulty">difficulty</a>
-  <a href="#r-chapters">chapters that cost you marks</a>
+  <a href="#r-questions">tag mistakes{mtag}</a>
+  <a href="#r-subjects">performance analysis</a>
   <a href="#r-time">time analysis</a>
-  <a href="#r-questions">per-question analysis{mtag}</a>
+  <a href="#r-difficulty">difficulty analysis</a>
+  <a href="#r-questions">per question analysis</a>
+  <a class="btn" href="{b}/build">back to paper</a>
   <a class="btn" href="{b}/history">all papers</a>
-  <a class="btn" href="{b}/dashboard">dashboard</a>
   <a class="btn primary" href="{b}/build">new paper</a>
+  {share_nav}
 </nav>
 <div class="result-main">
 <div id="r-overview" class="kv">
   <div class="card"><span class="dim">score</span><b>{score} <span class="dim">/ {max}</span></b></div>
-  <div class="card"><span class="dim">accuracy</span><b class="ok-t">{acc}%</b></div>
-  <div class="card"><span class="dim">negative marks</span><b class="bad-t">−{neg}</b></div>
+  <div class="card"><span class="dim">accuracy</span><b class="ok-t">{acc}%</b><span class="dim sub">{att} of {n} attempted</span></div>
+  <div class="card"><span class="dim">negative marks</span><b class="bad-t">−{neg}</b><span class="dim sub">{wr} wrong answer{wrs}</span></div>
   <div class="card"><span class="dim">time used</span><b>{dur}</b></div>
 </div>
 <div class="card encourage" role="status">
   <b>{eh}</b>
   <p>{eb}</p>
 </div>
-{share_box}
+{tag_banner}
 <div id="r-subjects" class="grid2">
-  <div class="card table-wrap"><h3>by subject</h3><table><thead><tr><th>subject</th><th>right</th><th>wrong</th><th>blank</th><th></th><th>%</th><th></th></tr></thead><tbody>{subj}</tbody></table></div>
+  <div class="card table-wrap"><h3>subject-wise result</h3><table><thead><tr><th>subject</th><th>right</th><th>wrong</th><th>blank</th><th></th><th>%</th><th></th></tr></thead><tbody>{subj}</tbody></table></div>
   <div id="r-difficulty" class="card table-wrap"><h3>by difficulty</h3><table><thead><tr><th>difficulty</th><th>right</th><th>wrong</th><th>blank</th><th></th><th>%</th><th></th></tr></thead><tbody>{diff}</tbody></table></div>
 </div>
 <h2 id="r-chapters">chapters that cost you marks</h2>
-<div class="card table-wrap"><table><thead><tr><th>subtopic</th><th>right</th><th>wrong</th><th>blank</th><th></th><th>%</th><th></th></tr></thead><tbody>{topic}</tbody></table></div>
+<p class="dim">subtopics with the most wrong or skipped questions in this test.</p>
+<div class="card table-wrap"><table><thead><tr><th>chapter › subtopic</th><th>right</th><th>wrong</th><th>blank</th><th></th><th>%</th><th></th></tr></thead><tbody>{topic}</tbody></table></div>
 {time_table}
 <h2 id="r-questions">every question</h2>
 {detail}
@@ -1248,10 +1327,23 @@ pub fn result(ctx: &Ctx, user: &str, attempt_id: &str, share_token: &str, a: &An
         dur = fmt_dur(a.used_secs),
         eh = enc_head,
         eb = enc_body,
-        share_box = share_box,
+        share_nav = if share_token.is_empty() { String::new() } else {
+            format!(r#"<div class="nav-share">{share_box}</div>"#, share_box = share_box)
+        },
+        tag_banner = if mistakes_pending > 0 {
+            format!(
+                r##"<div class="card rec-banner"><b>recommended: tag your {n} mistakes</b><p>Pick why you lost each question (calculation slip, formula, ran out of time...). It takes a couple of minutes and adds mistake-type charts and sharper advice to your dashboard.</p><a class="btn primary" href="#r-questions">tag mistakes</a></div>"##,
+                n = mistakes_pending
+            )
+        } else { String::new() },
+        user = esc(user),
+        att = a.right + a.wrong,
+        n = rows.len(),
+        wr = a.wrong,
+        wrs = if a.wrong == 1 { "" } else { "s" },
         subj = bucket_rows(&a.by_subject),
         diff = bucket_rows(&a.by_difficulty),
-        topic = bucket_rows(&topic_buckets),
+        topic = topic_rows(&a.by_topic),
         time_table = time_table,
         mtag = if mistakes_pending > 0 { format!(r#" <span class="badge">{}</span>"#, mistakes_pending) } else { String::new() },
         title_ = esc(&title),

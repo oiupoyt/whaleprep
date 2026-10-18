@@ -16,7 +16,7 @@
     const box = p.querySelector('input');
     if (box) entered.set(p.dataset.i, Number(box.dataset.t || 0));
   }  const visited = new Set();
-  const saveDot = document.getElementById('save-dot');
+  const saveDot = document.getElementById('save-state');
 
   // Per-question stopwatch: accrues only while the pane is on screen, so
   // time spent elsewhere never counts against a question.
@@ -133,7 +133,7 @@
     // A second change while a save is in flight is coalesced into one follow-up write.
     if (saving) { pending = all || pending; return; }
     saving = true;
-    if (saveDot) saveDot.classList.add('busy');
+    if (saveDot) saveDot.textContent = 'saving…';
     const panesToSave = all ? panes : [panes[cur]];
     try {
       await fetch(`${form.dataset.base}/attempt/${form.dataset.attempt}/answer`, {
@@ -141,13 +141,13 @@
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ answers: panesToSave.map(collect) }),
       });
-      if (saveDot) { saveDot.classList.remove('busy'); saveDot.classList.add('ok'); }
+      if (saveDot) { saveDot.textContent = 'answers saved'; saveDot.classList.remove('fail'); }
     } catch (_) {
       // Server unreachable: the selection stays on screen and travels with the form submit.
-      if (saveDot) { saveDot.classList.remove('busy'); saveDot.classList.add('fail'); }
+      if (saveDot) { saveDot.textContent = 'save failed'; saveDot.classList.add('fail'); }
     }
     saving = false;
-    if (saveDot && !saving) setTimeout(() => saveDot.classList.remove('ok', 'fail'), 1200);
+    
     if (pending) { const again = pending; pending = false; save(again); }
   }
 

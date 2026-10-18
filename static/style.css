@@ -1175,27 +1175,26 @@ footer {
   color: #111827;
 }
 
-/* Multiple Choice Option Cards */
+/* Multiple Choice Option Pills (compact: text lives inside the white card) */
 .opt {
-  display: flex;
-  gap: 14px;
+  display: inline-flex;
+  gap: 8px;
   align-items: center;
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  padding: 12px 18px;
-  margin: 10px 0;
-  font-size: 1rem;
+  padding: 10px 16px;
+  margin: 6px 10px 6px 0;
+  font-size: 0.95rem;
   color: #e2e8f0;
   cursor: pointer;
   transition: all 0.15s ease;
-  min-height: 52px;
+  min-height: 44px;
 }
 
 .opt:hover {
   background: var(--card-hover);
   border-color: #3b82f6;
-  transform: translateX(2px);
 }
 
 .opt.sel {
@@ -1213,33 +1212,22 @@ footer {
 }
 
 .opt-letter {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border-radius: var(--radius-md);
-  background: var(--border);
-  color: #f8fafc;
   font-weight: 700;
-  font-size: 0.85rem;
+  font-size: 0.9rem;
   flex-shrink: 0;
-  transition: all 0.15s ease;
 }
 
 .opt.sel .opt-letter {
-  background: #2563eb;
   color: #ffffff;
 }
 
-.opt-text {
-  flex: 1;
-  min-width: 0;
-  line-height: 1.5;
+/* Option-image questions still need room; pills with images go wide */
+.opt:has(img) {
+  display: flex;
+  max-width: 100%;
 }
 
-/* Images inside an option (organic structures, graphs): shrink to fit the pill */
-.opt-text img {
+.opt:has(img) img {
   display: inline-block;
   max-height: 120px;
   max-width: 100%;
@@ -1344,24 +1332,26 @@ footer {
   font-size: 0.825rem;
 }
 
-#save-dot {
-  width: 9px;
-  height: 9px;
+#save-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.75rem;
+  color: #6ee7b7;
+  white-space: nowrap;
+}
+
+#save-state::before {
+  content: "✓";
+  display: inline-grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
   border-radius: 50%;
-  background: var(--border);
-  transition: background 0.2s ease;
-}
-
-#save-dot.busy {
-  background: #f59e0b;
-}
-
-#save-dot.ok {
-  background: #10b981;
-}
-
-#save-dot.fail {
-  background: #ef4444;
+  background: rgba(16, 185, 129, 0.18);
+  color: #10b981;
+  font-size: 0.65rem;
+  font-weight: 700;
 }
 
 /* Share box on the result page */
@@ -1441,6 +1431,29 @@ footer {
   white-space: nowrap;
 }
 
+.result-nav .nav-meta {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+  overflow-wrap: anywhere;
+}
+
+.result-nav .nav-share {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+.result-nav .nav-share .share-box {
+  margin: 0;
+}
+
+.result-nav .nav-share .share-row code {
+  font-size: 0.65rem;
+}
+
 .result-nav a {
   font-size: 0.875rem;
   color: var(--text-muted);
@@ -1507,7 +1520,22 @@ footer {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
   gap: 6px;
-  margin: 12px 0;
+  margin: 8px 0;
+}
+
+/* Section header row inside the palette (MATHEMATICS · SECTION A) */
+.pal-sechead {
+  grid-column: 1 / -1;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin: 10px 0 2px;
+}
+
+.pal-sechead:first-child {
+  margin-top: 0;
 }
 
 .pal {
@@ -2590,4 +2618,182 @@ img.brand-logo {
 .ch-list li::before { content: "• "; color: var(--text-dim); }
 @media (max-width: 560px) {
   .ch-list { columns: 1; }
+}
+
+#save-state.fail {
+  color: #fca5a5;
+}
+
+#save-state.fail::before {
+  content: "!";
+  background: rgba(239, 68, 68, 0.18);
+  color: #ef4444;
+}
+
+/* Stat-card subtext ("6 of 25 attempted", "1 wrong answer") */
+.kv .card .sub {
+  display: block;
+  font-size: 0.7rem;
+  margin-top: 4px;
+}
+
+/* "Recommended: tag your N mistakes" banner */
+.card.rec-banner {
+  margin: 14px 0;
+  border-left: 3px solid #3b82f6;
+}
+
+.card.rec-banner b {
+  display: block;
+  font-size: 0.95rem;
+  margin-bottom: 6px;
+  color: #ffffff;
+}
+
+.card.rec-banner p {
+  margin: 0 0 10px;
+  font-size: 0.85rem;
+  color: var(--text-dim);
+  line-height: 1.5;
+}
+
+/* Chapter name in the chapters table (cyan like ZenithPrep links) */
+.chap-link {
+  color: #38bdf8;
+  font-weight: 600;
+}
+
+/* Build page: mode cards, complete-syllabus, two-column layout */
+.zp-mode-cards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.zp-mode-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--panel);
+  padding: 14px 16px;
+  cursor: pointer;
+  transition: border-color 0.15s ease;
+}
+
+.zp-mode-card b {
+  display: block;
+  font-size: 0.95rem;
+  color: #ffffff;
+  margin-bottom: 4px;
+}
+
+.zp-mode-card span {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.zp-mode-card.active {
+  border-color: #3b82f6;
+  background: rgba(59, 130, 246, 0.08);
+}
+
+.zp-mode-card.active b {
+  color: #93c5fd;
+}
+
+.zp-complete-btn {
+  background: none;
+  border: none;
+  color: #93c5fd;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+  margin-bottom: 4px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.zp-complete-btn:hover {
+  color: #bfdbfe;
+}
+
+.zp-complete-hint {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin: 0 0 18px;
+}
+
+.zp-two-col {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 18px;
+  align-items: start;
+}
+
+.zp-side-panel {
+  position: sticky;
+  top: 76px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  padding: 16px;
+}
+
+.zp-side-panel .zp-filter-heading {
+  display: block;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+
+.zp-side-panel .zp-btn-start {
+  width: 100%;
+  margin-top: 4px;
+}
+
+#zp-pool-quotas {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.zp-quota-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 0.8rem;
+  color: var(--text-dim);
+}
+
+.zp-quota-row .zp-quota-badges {
+  display: flex;
+  gap: 6px;
+}
+
+.zp-quota-badge {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #6ee7b7;
+  background: rgba(16, 185, 129, 0.12);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  border-radius: 999px;
+  padding: 2px 8px;
+  white-space: nowrap;
+}
+
+@media (max-width: 1024px) {
+  .zp-two-col {
+    grid-template-columns: 1fr;
+  }
+  .zp-side-panel {
+    position: static;
+  }
 }
