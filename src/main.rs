@@ -315,6 +315,8 @@ async fn build_page(State(ctx): State<CtxArc>, h: HeaderMap) -> axum::response::
         duration: Some(30),
         unseen_only: Some("on".into()),
         mode: String::new(),
+        past: String::new(),
+        shift: String::new(),
     };
     hx(views::build(&ctx, &name, blocks, &form, available, None), StatusCode::OK).into_response()
 }

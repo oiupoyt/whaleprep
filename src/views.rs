@@ -496,6 +496,25 @@ pub fn build(ctx: &Ctx, user: &str, blocks: Vec<SubjectBlock>, _form: &BuildForm
     </div>
   </div>
 
+  <!-- Past-paper picker (hidden until Previous-year mode) -->
+  <div class="zp-past-panel" id="zp-past-panel" hidden>
+    <span class="zp-filter-heading">PICK A YEAR</span>
+    <div class="zp-pill-row" id="past-year-row">
+      <label class="zp-filter-pill"><input type="radio" name="past-year" value="2025"><span>2025</span></label>
+      <label class="zp-filter-pill"><input type="radio" name="past-year" value="2024"><span>2024</span></label>
+      <label class="zp-filter-pill"><input type="radio" name="past-year" value="2023"><span>2023</span></label>
+      <label class="zp-filter-pill"><input type="radio" name="past-year" value="2022"><span>2022</span></label>
+      <label class="zp-filter-pill"><input type="radio" name="past-year" value="2021"><span>2021</span></label>
+      <label class="zp-filter-pill"><input type="radio" name="past-year" value="2020"><span>2020</span></label>
+    </div>
+    <span class="zp-filter-heading" style="margin-top:14px">SHIFT</span>
+    <div class="zp-pill-row" id="past-shift-row">
+      <label class="zp-filter-pill active"><input type="radio" name="past-shift" value="ALL" checked><span>any</span></label>
+      <label class="zp-filter-pill"><input type="radio" name="past-shift" value="S1"><span>shift 1</span></label>
+      <label class="zp-filter-pill"><input type="radio" name="past-shift" value="S2"><span>shift 2</span></label>
+    </div>
+  </div>
+
   <button type="button" class="zp-complete-btn" id="btn-complete-syllabus">complete syllabus</button>
   <p class="zp-complete-hint">Selects every chapter in all three subjects. You can still remove any you don't want.</p>
 
@@ -537,6 +556,8 @@ pub fn build(ctx: &Ctx, user: &str, blocks: Vec<SubjectBlock>, _form: &BuildForm
     <input type="hidden" name="difficulties" id="difficulties" value="Easy,Medium,Hard">
     <input type="hidden" name="years" id="years" value="2020,2021,2022,2023,2024,2025">
     <input type="hidden" name="mode" id="mode" value="jee">
+    <input type="hidden" name="past" id="past" value="">
+    <input type="hidden" name="shift" id="shift" value="">
 
     <!-- Chapter Rows Container -->
     <div class="zp-chapters-container">
@@ -615,6 +636,47 @@ pub fn build(ctx: &Ctx, user: &str, blocks: Vec<SubjectBlock>, _form: &BuildForm
   const poolEstimate = document.getElementById('zp-pool-estimate');
   const btnDesc = document.getElementById('btn-desc');
   const searchInput = document.getElementById('zp-search-input');
+
+  // Mode cards: build vs past-paper
+  const modeBuild = document.getElementById('mode-build');
+  const modePast = document.getElementById('mode-past');
+  const pastPanel = document.getElementById('zp-past-panel');
+  const pastField = document.getElementById('past');
+  const shiftField = document.getElementById('shift');
+  const chaptersWrap = document.querySelector('.zp-two-col');
+  let pastMode = false;
+
+  function setMode(past) {{
+    pastMode = past;
+    modeBuild.classList.toggle('active', !past);
+    modePast.classList.toggle('active', past);
+    pastPanel.hidden = !past;
+    // In past mode the chapters list and quota sidebar are meaningless.
+    document.querySelector('.zp-chapters-container').style.display = past ? 'none' : '';
+    document.querySelectorAll('.zp-subject-pills-bar, .zp-search-row, #btn-complete-syllabus, .zp-complete-hint').forEach(el => {{
+      el.style.display = past ? 'none' : '';
+    }});
+    document.getElementById('diff-row').closest('.zp-filter-sec').style.display = past ? 'none' : '';
+    pastField.value = past ? '1' : '';
+    if (past) {{
+      // one flat 180-minute paper, all questions of the year
+      jeeBox.checked = false;
+      jeeBox.dispatchEvent(new Event('change'));
+      countInput.value = 75;
+    }}
+    sync();
+  }}
+  if (modeBuild) modeBuild.addEventListener('click', () => setMode(false));
+  if (modePast) modePast.addEventListener('click', () => setMode(true));
+
+  // Radio pills inside the past panel toggle their .active class
+  document.querySelectorAll('#zp-past-panel input[type=radio]').forEach(r => {{
+    r.addEventListener('change', () => {{
+      r.closest('.zp-pill-row').querySelectorAll('.zp-filter-pill').forEach(p => p.classList.remove('active'));
+      r.closest('.zp-filter-pill').classList.add('active');
+      sync();
+    }});
+  }});
 
   // 0. Complete syllabus: check every chapter across all subjects
   const completeBtn = document.getElementById('btn-complete-syllabus');
@@ -778,6 +840,18 @@ pub fn build(ctx: &Ctx, user: &str, blocks: Vec<SubjectBlock>, _form: &BuildForm
 
   // 11. Sync state, pill badges, and submit button
   function sync() {{
+    if (pastMode) {{
+      const yr = document.querySelector('input[name=past-year]:checked');
+      const sh = document.querySelector('input[name=past-shift]:checked');
+      yearField.value = yr ? yr.value : '';
+      shiftField.value = sh ? sh.value : 'ALL';
+      summaryText.innerHTML = yr
+        ? `<b>JEE Main ${{yr.value}}${{sh && sh.value !== 'ALL' ? ' ' + sh.value : ''}}</b><span class="dim">every question of that paper</span>`
+        : '<b>pick a year</b><span class="dim">above</span>';
+      submitBtn.disabled = !yr;
+      btnDesc.textContent = yr ? 'past paper · 180 minutes' : 'pick a year first';
+      return;
+    }}
     const checkedChaps = [...document.querySelectorAll('.chap:checked')];
     const checkedSubs = [...document.querySelectorAll('.subtopic:checked')];
     chapField.value = checkedChaps.map(c => c.value).join(',');

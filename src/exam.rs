@@ -62,6 +62,12 @@ pub struct BuildForm {
     /// "jee" means 3 subjects × 60 min each; otherwise one flat timer.
     #[serde(default)]
     pub mode: String,
+    /// When "1", take every question of the given year+shift (past-paper mode).
+    #[serde(default)]
+    pub past: String,
+    /// Shift filter for past-paper mode ("S1" or "S2"); "ALL" means any.
+    #[serde(default)]
+    pub shift: String,
 }
 
 impl BuildForm {
@@ -87,9 +93,16 @@ impl BuildForm {
     pub fn is_jee_mode(&self) -> bool {
         self.mode == "jee"
     }
+    pub fn is_past_mode(&self) -> bool {
+        self.past == "1"
+    }
 }
 
 pub async fn build_paper(pool: &SqlitePool, uid: &str, f: &BuildForm) -> anyhow::Result<(String, String)> {
+    // Past-paper mode: every question of one year+shift, no chapter picking.
+    if f.is_past_mode() {
+        return build_past_paper(pool, uid, f).await;
+    }
     let chapters = f.chapter_ids();
     if chapters.is_empty() {
         anyhow::bail!("Pick at least one chapter");
@@ -432,4 +445,53 @@ pub async fn finalize(pool: &SqlitePool, attempt: &str) -> anyhow::Result<(i32, 
     }
     tx.commit().await?;
     Ok((score, max, used))
+}
+
+/// Past-paper mode: take every question from the chosen year (and shift when
+/// given), in a stable year-major order — mirrors sitting an actual paper.
+async fn build_past_paper(pool: &SqlitePool, uid: &str, f: &BuildForm) -> anyhow::Result<(String, String)> {
+    let years = f.year_list();
+    let year = match years.first() {
+        Some(y) => *y,
+        None => anyhow::bail!("Pick a year for the past paper"),
+    };
+    let shift = f.shift.trim();
+    let (sql, binds): (&str, Vec<String>) = if shift.is_empty() || shift == "ALL" {
+        ("SELECT id FROM questions WHERE year=? ORDER BY subject, id", vec![year.to_string()])
+    } else {
+        ("SELECT id FROM questions WHERE year=? AND shift=? ORDER BY subject, id", vec![year.to_string(), shift.to_string()])
+    };
+    let mut q = sqlx::query_scalar::<_, i64>(sql);
+    for b in &binds { q = q.bind(b); }
+    let mut ids: Vec<i64> = q.fetch_all(pool).await?;
+    if ids.is_empty() {
+        anyhow::bail!("No questions in the bank for that year and shift.");
+    }
+    ids.sort_unstable();
+    ids.dedup();
+    // Past papers are not shuffled: the real paper's order is part of the
+    // practice. Cap at 75 for the same reason as build mode.
+    ids.truncate(75);
+
+    let paper = uuid::Uuid::new_v4().to_string();
+    let share = uuid::Uuid::new_v4().simple().to_string()[..10].to_string();
+    let title = if shift.is_empty() || shift == "ALL" {
+        format!("JEE Main {year}")
+    } else {
+        format!("JEE Main {year} {shift}")
+    };
+    let mut tx = pool.begin().await?;
+    sqlx::query("INSERT INTO papers(id, user_id, title, duration_min, created_at, share_token) VALUES(?,?,?,?,?,?)")
+        .bind(&paper).bind(uid).bind(&title).bind(180).bind(chrono::Utc::now().to_rfc3339()).bind(&share)
+        .execute(&mut *tx).await?;
+    for (ord, qid) in ids.iter().enumerate() {
+        sqlx::query("INSERT INTO paper_questions(paper_id, question_id, ord) VALUES(?,?,?)")
+            .bind(&paper).bind(qid).bind(ord as i64)
+            .execute(&mut *tx).await?;
+        sqlx::query("INSERT OR REPLACE INTO seen_questions(user_id, question_id, seen_at) VALUES(?,?,?)")
+            .bind(uid).bind(qid).bind(chrono::Utc::now().to_rfc3339())
+            .execute(&mut *tx).await?;
+    }
+    tx.commit().await?;
+    Ok((paper, share))
 }

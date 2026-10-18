@@ -2797,3 +2797,25 @@ img.brand-logo {
     position: static;
   }
 }
+
+/* Past-paper picker panel */
+.zp-past-panel {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--panel);
+  padding: 14px 16px;
+  margin-bottom: 16px;
+}
+
+.zp-past-panel .zp-filter-heading {
+  display: block;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+
+.zp-past-panel .zp-filter-pill input[type=radio] {
+  accent-color: #2563eb;
+}
