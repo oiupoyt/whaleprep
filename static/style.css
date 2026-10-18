@@ -2819,3 +2819,31 @@ img.brand-logo {
 .zp-past-panel .zp-filter-pill input[type=radio] {
   accent-color: #2563eb;
 }
+
+/* Programmed summary ("AI summary" analogue) */
+.summary-card {
+  margin: 0 0 18px;
+}
+
+.summary-notes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.summary-notes li {
+  position: relative;
+  padding-left: 18px;
+  font-size: 0.9rem;
+  line-height: 1.6;
+  color: var(--text-dim);
+}
+
+.summary-notes li::before {
+  content: "→";
+  position: absolute;
+  left: 0;
+  color: #38bdf8;
+}

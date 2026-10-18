@@ -1,4 +1,4 @@
-use crate::analytics::{accuracy, fmt_dur, fmt_pct, Analysis, Bucket, TestRow};
+use crate::analytics::{accuracy, coach_notes, fmt_dur, fmt_pct, Analysis, Bucket, TestRow};
 use crate::auth::Ctx;
 use crate::exam::{BuildForm, Question};
 
@@ -1275,6 +1275,17 @@ pub fn result(ctx: &Ctx, user: &str, attempt_id: &str, share_token: &str, a: &An
         })
         .collect();
     let neg = rows.iter().filter(|r| !r.correct && !r.selected.trim().is_empty()).count() as i32;
+    // Programmed summary (the "AI Summary" analogue): rule-based coach notes
+    // from this paper, plus the dominant tagged mistake when any exist.
+    let mut mistake_map: std::collections::HashMap<String, i64> = std::collections::HashMap::new();
+    for r in rows {
+        for t in &r.tags {
+            *mistake_map.entry(t.clone()).or_insert(0) += 1;
+        }
+    }
+    let mut mistake_counts: Vec<(String, i64)> = mistake_map.into_iter().collect();
+    mistake_counts.sort_by_key(|(_, n)| -n);
+    let summary_notes = coach_notes(a, &[], &mistake_counts);
     // Time analysis: where the clock went, from per-question times.
     let avg_for = |filt: &dyn Fn(&RowView) -> bool| -> String {
         let pick: Vec<i64> = rows.iter().filter(|r| filt(r) && r.time_secs > 0).map(|r| r.time_secs).collect();
@@ -1340,6 +1351,7 @@ pub fn result(ctx: &Ctx, user: &str, attempt_id: &str, share_token: &str, a: &An
   <span class="dim nav-meta">{user} · {title_}</span>
   <a href="#r-overview">overview</a>
   <a href="#r-questions">tag mistakes{mtag}</a>
+  <a href="#r-summary">summary</a>
   <a href="#r-subjects">performance analysis</a>
   <a href="#r-time">time analysis</a>
   <a href="#r-difficulty">difficulty analysis</a>
@@ -1361,6 +1373,10 @@ pub fn result(ctx: &Ctx, user: &str, attempt_id: &str, share_token: &str, a: &An
   <p>{eb}</p>
 </div>
 {tag_banner}
+<h2 id="r-summary">summary</h2>
+<div class="card summary-card"><ul class="summary-notes">
+{summary_notes}
+</ul></div>
 <div id="r-subjects" class="grid2">
   <div class="card table-wrap"><h3>subject-wise result</h3><table><thead><tr><th>subject</th><th>right</th><th>wrong</th><th>blank</th><th></th><th>%</th><th></th></tr></thead><tbody>{subj}</tbody></table></div>
   <div id="r-difficulty" class="card table-wrap"><h3>by difficulty</h3><table><thead><tr><th>difficulty</th><th>right</th><th>wrong</th><th>blank</th><th></th><th>%</th><th></th></tr></thead><tbody>{diff}</tbody></table></div>
@@ -1404,6 +1420,7 @@ pub fn result(ctx: &Ctx, user: &str, attempt_id: &str, share_token: &str, a: &An
         share_nav = if share_token.is_empty() { String::new() } else {
             format!(r#"<div class="nav-share">{share_box}</div>"#, share_box = share_box)
         },
+        summary_notes = summary_notes.iter().map(|n| format!("<li>{}</li>", esc(n))).collect::<String>(),
         tag_banner = if mistakes_pending > 0 {
             format!(
                 r##"<div class="card rec-banner"><b>recommended: tag your {n} mistakes</b><p>Pick why you lost each question (calculation slip, formula, ran out of time...). It takes a couple of minutes and adds mistake-type charts and sharper advice to your dashboard.</p><a class="btn primary" href="#r-questions">tag mistakes</a></div>"##,
