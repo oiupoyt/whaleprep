@@ -79,7 +79,8 @@ async fn main() -> anyhow::Result<()> {
         )),
         save_hits: std::sync::Mutex::new(std::collections::HashMap::new()),
     });
-    let static_dir = format!("{}/static", std::env::current_dir()?.display());
+    let static_dir = std::env::var("PYQ_STATIC")
+        .unwrap_or_else(|_| format!("{}/static", std::env::current_dir().unwrap_or_default().display()));
 
     let app = Router::new()
         .route("/", get(home))
